@@ -85,8 +85,6 @@ impl OreAuth {
     }
 }
 
-type OreResult = Result<(), Error>;
-
 impl OreClient {
     pub async fn new(client: Client, session: OreSession, url: String) -> Self {
         OreClient {
@@ -167,7 +165,7 @@ impl ProjectHandle {
     }
 
     // Gets projects from query input
-    pub(crate) async fn projects(&mut self) -> OreResult {
+    pub(crate) async fn projects(&mut self) -> Result<()> {
         let res: Response = if let Some(query) = &self.query {
             self.ore_client
                 .get_url_query("/projects".to_string(), query.to_vec())
