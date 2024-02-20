@@ -139,12 +139,6 @@ impl OreClient {
         self.invalidate().await?;
         Ok(res)
     }
-
-    pub(crate) async fn permissions(&mut self) -> Result<()> {
-        let res = self.get_url("/permissions".to_string()).await?;
-        res.text().await?;
-        Ok(())
-    }
 }
 
 pub(crate) struct ProjectHandle {
