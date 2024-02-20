@@ -1,5 +1,8 @@
-use std::fmt::Display;
+use std::{env, fmt::Display};
 
+use anyhow::Error;
+use anyhow::Ok;
+use anyhow::Result;
 use chrono::{DateTime, Utc};
 use reqwest::{
     header::{self, AUTHORIZATION},
@@ -7,10 +10,7 @@ use reqwest::{
 };
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 
-use crate::{
-    errors::OreError,
-    paginated_project_result::{PaginatedProjectResult, Project},
-};
+use crate::paginated_project_result::{PaginatedProjectResult, Project};
 
 pub struct OreClient {
     client: Client,
@@ -53,40 +53,39 @@ impl OreAuth {
             ore_client: reqwest::Client::new(),
             ore_session: OreSession::default(),
             url: "https://ore.spongepowered.org/api/v2".to_string(),
-            api_key: "beada469-90b5-4f64-b530-7ba3c2e16699".to_string(),
+            api_key: env::var("ORE_API_KEY").unwrap(),
         }
     }
 
     //Main fn for authorizing
-    pub(crate) async fn auth(mut self) -> Result<OreClient, OreError> {
+    pub(crate) async fn auth(mut self) -> Result<OreClient> {
         let res = self.send_request().await;
         let res = self.parse_result(res).await?;
-        let res: OreAuthResponse =
-            serde_json::from_str(&res).map_err(|e| OreError::SerializationError(e))?;
+        let res: OreAuthResponse = serde_json::from_str(&res)?;
         self.ore_session.update(res);
 
         Ok(OreClient::new(self.ore_client, self.ore_session, self.url).await)
     }
 
-    async fn parse_result(&self, res: Result<Response, OreError>) -> Result<String, OreError> {
-        res?.text().await.map_err(|e| OreError::ReqwestError(e))
+    async fn parse_result(&self, res: Result<Response, Error>) -> Result<String> {
+        Ok(res?.text().await?)
     }
 
     // Send request for authentication
-    async fn send_request(&self) -> Result<Response, OreError> {
-        self.ore_client
+    async fn send_request(&self) -> Result<Response> {
+        Ok(self
+            .ore_client
             .post(format!("{}/authenticate", self.url))
             .header(
                 reqwest::header::WWW_AUTHENTICATE,
                 format!("OreApi apikey={}", self.api_key),
             )
             .send()
-            .await
-            .map_err(|e| OreError::ReqwestError(e))
+            .await?)
     }
 }
 
-type OreResult = Result<(), OreError>;
+type OreResult = Result<(), Error>;
 
 impl OreClient {
     pub async fn new(client: Client, session: OreSession, url: String) -> Self {
@@ -98,7 +97,7 @@ impl OreClient {
     }
 
     fn log(code: StatusCode) {
-        let msg = match code {
+        let _msg = match code {
             StatusCode::NO_CONTENT => "Session Invalidated",
             StatusCode::BAD_REQUEST => "Request not made with a session",
             StatusCode::UNAUTHORIZED => "Api session missing, invalid, or expired",
@@ -109,10 +108,10 @@ impl OreClient {
     }
 
     // Invalidates the current session
-    pub(crate) async fn invalidate(&self) -> Result<(), OreError> {
+    pub(crate) async fn invalidate(&self) -> Result<()> {
         let builder = self.client.delete(format!("{}/sessions/current", self.url));
         let res = self.apply_headers(builder).send().await;
-        Self::log(res.map_err(|e| OreError::ReqwestError(e))?.status());
+        Self::log(res?.status());
         Ok(())
     }
 
@@ -131,36 +130,28 @@ impl OreClient {
     }
 
     // GET plain request
-    async fn get_url(&self, url: String) -> Result<Response, OreError> {
+    async fn get_url(&self, url: String) -> Result<Response> {
         let url = format!("{}{}", self.url, url);
         let builder = self.client.get(url);
-        let res = self
-            .apply_headers(builder)
-            .send()
-            .await
-            .map_err(|e| OreError::ReqwestError(e));
+        let res = self.apply_headers(builder).send().await?;
         self.invalidate().await?;
-        res
+        Ok(res)
     }
 
     // GET with String query
-    async fn get_url_query(
-        &self,
-        url: String,
-        query: Vec<(String, String)>,
-    ) -> Result<Response, OreError> {
+    async fn get_url_query(&self, url: String, query: Vec<(String, String)>) -> Result<Response> {
         let url = format!("{}{}", self.url, url);
         let builder = self.client.get(url);
         let builder = self.apply_headers(builder);
         let builder = builder.query(&query);
-        let res = builder.send().await.map_err(|e| OreError::ReqwestError(e));
+        let res = builder.send().await?;
         self.invalidate().await?;
-        res
+        Ok(res)
     }
 
-    pub(crate) async fn permissions(&mut self) -> Result<(), OreError> {
+    pub(crate) async fn permissions(&mut self) -> Result<()> {
         let res = self.get_url("/permissions".to_string()).await?;
-        res.text().await.map_err(|e| OreError::ReqwestError(e))?;
+        res.text().await?;
         Ok(())
     }
 }
@@ -188,7 +179,7 @@ impl ProjectHandle {
         Ok(Self::display_results(res))
     }
 
-    pub(crate) async fn plugin(&mut self) -> OreResult {
+    pub(crate) async fn plugin(&mut self) -> Result<()> {
         let res: Response = if let Some(query) = &self.query {
             let link = format!("/projects/{}", query.first().unwrap().1);
             self.ore_client.get_url(link).await?
@@ -207,13 +198,13 @@ impl ProjectHandle {
             .for_each(|proj| println!("{}", proj.plugin_id))
     }
 
-    fn serialize<T: DeserializeOwned>(txt: String) -> Result<T, OreError> {
-        serde_json::from_str(&txt).map_err(|e| OreError::SerializationError(e))
+    fn serialize<T: DeserializeOwned>(txt: String) -> Result<T> {
+        serde_json::from_str(&txt).map_err(|e| anyhow::Error::from(e))
     }
 
     // Common method for projects to handle responses.
-    async fn handle_response(res: Response) -> Result<String, OreError> {
-        Ok(res.text().await.map_err(|e| OreError::ReqwestError(e))?)
+    async fn handle_response(res: Response) -> Result<String> {
+        Ok(res.text().await?)
     }
 }
 

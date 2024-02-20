@@ -1,13 +1,10 @@
-mod errors;
 mod ore;
 mod paginated_project_result;
 
-use std::{collections::HashMap, fmt::Display};
-
-use clap::{Parser, Subcommand};
-use errors::OreError;
+use anyhow::{Error, Result};
+use clap::{arg, Parser, Subcommand};
 use ore::{OreAuth, ProjectHandle};
-use serde::Serialize;
+use std::{collections::HashMap, fmt::Display};
 
 #[derive(Parser)]
 #[command(version)]
@@ -26,14 +23,54 @@ enum Commands {
     },
 }
 
+macro_rules! query {
+    ($($lit:literal : $val:expr),+ $(,)?) => {
+      {
+        let mut map: HashMap<String, Vec<String>> = Default::default();
+
+            $(
+
+                let arg = match $val {
+                    QueryType::Value(e) => {
+                        if let Some(value) = e {
+                            Some(vec![value.to_string()])
+                        } else {
+                            None
+                        }
+                    },
+                    QueryType::Vec(e) => {
+                        if let Some(value) = e {
+                            Some(value.iter().map(|f| f.to_string()).collect())
+                        } else {
+                            None
+                        }
+                    },
+                };
+
+                if let Some(args) = arg {
+                    map.insert($lit.to_string(), args)
+                } else {
+                    None
+                }
+            ;)+
+
+            let mut vec: Vec<(String, String)> = vec![];
+            map.iter().for_each(|f| {
+                f.1.iter().for_each(|e| vec.push((f.0.to_string(), e.to_string())))
+            });
+            vec
+      }
+    }
+}
+
 #[derive(Subcommand)]
 enum SubCommands {
     Search {
         search: Option<String>,
-        #[arg(short, long)]
-        category: Option<String>,
-        #[arg(short, long)]
-        tags: Option<String>,
+        #[arg(short, long, value_delimiter = ',')]
+        category: Option<Vec<String>>,
+        #[arg(short, long, value_delimiter = ',')]
+        tags: Option<Vec<String>>,
         #[arg(short, long)]
         owner: Option<String>,
         #[arg(short, long)]
@@ -55,8 +92,8 @@ enum SubCommands {
 #[derive(Subcommand)]
 enum PluginVersions {
     Version {
-        #[arg(short, long)]
-        tags: Option<String>,
+        #[arg(short, long, value_delimiter = ',')]
+        tags: Option<Vec<String>>,
         #[arg(short, long)]
         limit: Option<i64>,
         #[arg(short, long)]
@@ -68,7 +105,7 @@ enum PluginVersions {
     },
 }
 
-async fn handle_cli(cli: Cli) -> Result<(), OreError> {
+async fn handle_cli(cli: Cli) -> Result<()> {
     //Authorize the ore client
     let mut ore_client = OreAuth::new().auth().await?;
 
@@ -91,18 +128,18 @@ async fn handle_cli(cli: Cli) -> Result<(), OreError> {
                     limit,
                     offset,
                 } => {
-                    let bld = QueryBuilder::new()
-                        .add_query("q".to_string(), search)
-                        .add_vec("categories".to_string(), category)
-                        .add_vec("tags".to_string(), tags)
-                        .add_query("owner".to_string(), owner)
-                        .add_query("sort".to_string(), sort)
-                        .add_query("relevance".to_string(), relevance)
-                        .add_query("limit".to_string(), limit)
-                        .add_query("offset".to_string(), offset)
-                        .build();
+                    let e = query!(
+                        "q" : QueryType::Value(search),
+                        "categories" : QueryType::Vec(category),
+                        "tags" : QueryType::Vec(tags),
+                        "owner" : QueryType::Value(owner),
+                        "sort" : QueryType::Value(sort),
+                        "relevance" : QueryType::Value(relevance),
+                        "limit" : QueryType::Value(limit),
+                        "offset" : QueryType::Value(offset)
+                    );
 
-                    Ok(ProjectHandle::new(ore_client, Some(bld))
+                    Ok(ProjectHandle::new(ore_client, Some(e))
                         .await
                         .projects()
                         .await?)
@@ -110,87 +147,47 @@ async fn handle_cli(cli: Cli) -> Result<(), OreError> {
                 SubCommands::Plugin {
                     plugin_id,
                     versions,
-                } => {
-                    let bld = QueryBuilder::new().add_query("q".to_string(), &Some(plugin_id));
+                } => Ok({
+                    let f = query!(
+                        "q" : QueryType::Value(&Some(plugin_id))
+                    );
+                    match versions {
+                        Some(PluginVersions::Version {
+                            name,
+                            stats,
+                            tags,
+                            limit,
+                            offset,
+                        }) => {
+                            let e = query!(
+                                "q" : QueryType::Value(&Some(plugin_id)),
+                                "name" : QueryType::Value(name),
+                                "stats" : QueryType::Value(stats),
+                                "tags" : QueryType::Vec(tags),
+                                "limit" : QueryType::Value(limit),
+                                "offset" : QueryType::Value(offset)
+                            );
 
-                    if let Some(versions) = versions {
-                        match versions {
-                            PluginVersions::Version {
-                                name,
-                                stats,
-                                tags,
-                                limit,
-                                offset,
-                            } => {
-                                let bld = bld
-                                    .add_query("name".to_string(), name)
-                                    .add_query("stats".to_string(), stats)
-                                    .add_vec("tags".to_string(), tags)
-                                    .add_query("limit".to_string(), limit)
-                                    .add_query("offset".to_string(), offset);
+                            let mut proj_handle = ProjectHandle::new(ore_client, Some(e)).await;
+                            return Ok(proj_handle.plugin().await?);
+                        }
+                        None => {
+                            let mut proj_handle = ProjectHandle::new(ore_client, Some(f)).await;
 
-                                if name.is_some() {}
-                                if stats.is_some() {}
-
-                                let mut proj_handle =
-                                    ProjectHandle::new(ore_client, Some(bld.build())).await;
-                                return Ok(proj_handle.plugin().await?);
-                            }
+                            Ok::<(), Error>(proj_handle.plugin().await?)?
                         }
                     }
-                    let mut proj_handle = ProjectHandle::new(ore_client, Some(bld.build())).await;
-
-                    Ok(proj_handle.plugin().await?)
-                }
+                }),
             },
-
             None => Ok(println!("Argument required!")),
         },
-
         None => return Ok(()),
     }
 }
 
-fn parse_list(value: String) -> Option<Vec<String>> {
-    Some(value.split(',').map(|f| f.to_string()).collect())
-}
-
-#[derive(Serialize, Debug)]
-struct QueryBuilder {
-    query: HashMap<String, Vec<String>>,
-}
-
-impl QueryBuilder {
-    fn new() -> Self {
-        QueryBuilder {
-            query: HashMap::new(),
-        }
-    }
-
-    fn add_query<T: Display>(mut self, key: String, value: &Option<T>) -> Self {
-        if let Some(value) = value {
-            self.query.insert(key, vec![value.to_string()]);
-        }
-        self
-    }
-
-    fn add_vec(mut self, key: String, value: &Option<String>) -> Self {
-        if let Some(value) = value {
-            let str: Vec<String> = parse_list(value.to_string()).unwrap();
-            self.query.insert(key, str);
-        };
-
-        self
-    }
-
-    fn build(self) -> Vec<(String, String)> {
-        let mut vec: Vec<(String, String)> = vec![];
-        self.query.iter().for_each(|f| {
-            f.1.iter()
-                .for_each(|e| vec.push((f.0.to_string(), e.to_string())))
-        });
-        vec
-    }
+enum QueryType<'a, T: Display> {
+    Vec(&'a Option<Vec<T>>),
+    Value(&'a Option<T>),
 }
 
 #[tokio::main]
