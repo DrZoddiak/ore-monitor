@@ -3,20 +3,20 @@ use std::fmt::Display;
 use serde::{Deserialize, Serialize};
 
 #[derive(Serialize, Deserialize, Debug)]
-pub(crate) struct PaginatedProjectResult {
+pub struct PaginatedProjectResult {
     pub pagination: Pagination,
     pub result: Vec<Project>,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
-pub(crate) struct Pagination {
+pub struct Pagination {
     limit: i64,
     offset: i64,
     count: i64,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
-pub(crate) struct Project {
+pub struct Project {
     pub created_at: String,
     pub plugin_id: String,
     pub name: String,
@@ -33,19 +33,19 @@ pub(crate) struct Project {
 }
 
 #[derive(Serialize, Deserialize, Debug)]
-pub(crate) struct ProjectNamespace {
+pub struct ProjectNamespace {
     pub owner: String,
-    slug: String,
+    pub slug: String,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
-pub(crate) struct PromotedVersion {
+pub struct PromotedVersion {
     pub version: String,
     pub tags: Vec<PromotedVersionTag>,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
-pub(crate) struct PromotedVersionTag {
+pub struct PromotedVersionTag {
     pub name: String,
     pub data: Option<String>,
     pub display_data: Option<String>,
@@ -65,13 +65,13 @@ impl Display for PromotedVersionTag {
 }
 
 #[derive(Serialize, Deserialize, Debug)]
-pub(crate) struct VersionTagColor {
+pub struct VersionTagColor {
     foreground: String,
     background: String,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
-pub(crate) struct ProjectStatsAll {
+pub struct ProjectStatsAll {
     views: i64,
     downloads: i64,
     recent_views: i64,
@@ -96,13 +96,13 @@ impl Display for ProjectStatsAll {
 }
 
 #[derive(Serialize, Deserialize, Debug)]
-pub(crate) struct UserActions {
+pub struct UserActions {
     starred: bool,
     watching: bool,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
-pub(crate) struct ProjectSettings {
+pub struct ProjectSettings {
     homepage: Option<String>,
     issues: Option<String>,
     sources: Option<String>,
@@ -111,7 +111,7 @@ pub(crate) struct ProjectSettings {
 }
 
 #[derive(Serialize, Deserialize, Debug)]
-pub(crate) struct ProjectLicense {
+pub struct ProjectLicense {
     name: Option<String>,
     url: Option<String>,
 }

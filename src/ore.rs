@@ -11,6 +11,7 @@ use serde::{de::DeserializeOwned, Deserialize, Serialize};
 
 use crate::paginated_project_result::{PaginatedProjectResult, Project};
 
+#[derive(Debug)]
 pub struct OreClient {
     client: Client,
     session: OreSession,
@@ -141,7 +142,7 @@ impl OreClient {
     }
 }
 
-pub(crate) struct ProjectHandle {
+pub struct ProjectHandle {
     ore_client: OreClient,
     query: Option<Vec<(String, String)>>,
 }
