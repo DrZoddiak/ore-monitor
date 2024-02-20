@@ -3,7 +3,7 @@ mod paginated_project_result;
 
 use anyhow::{Error, Result};
 use clap::{arg, Parser, Subcommand};
-use ore::{OreAuth, ProjectHandle};
+use ore::{OreAuth, OreClient, ProjectHandle};
 use std::{collections::HashMap, fmt::Display};
 
 #[derive(Parser)]
@@ -16,10 +16,34 @@ struct Cli {
 
 #[derive(Subcommand)]
 enum Commands {
-    Permissions {},
     Projects {
         #[command(subcommand)]
         search: Option<SubCommands>,
+    },
+}
+#[derive(Subcommand)]
+enum SubCommands {
+    Search {
+        search: Option<String>,
+        #[arg(short, long, value_delimiter = ',')]
+        category: Option<Vec<String>>,
+        #[arg(short, long, value_delimiter = ',')]
+        tags: Option<Vec<String>>,
+        #[arg(short, long)]
+        owner: Option<String>,
+        #[arg(short, long)]
+        sort: Option<String>,
+        #[arg(short, long)]
+        relevance: Option<bool>,
+        #[arg(short, long)]
+        limit: Option<i64>,
+        #[arg(long)]
+        offset: Option<i64>,
+    },
+    Plugin {
+        plugin_id: String,
+        #[command(subcommand)]
+        versions: Option<PluginVersions>,
     },
 }
 
@@ -64,32 +88,6 @@ macro_rules! query {
 }
 
 #[derive(Subcommand)]
-enum SubCommands {
-    Search {
-        search: Option<String>,
-        #[arg(short, long, value_delimiter = ',')]
-        category: Option<Vec<String>>,
-        #[arg(short, long, value_delimiter = ',')]
-        tags: Option<Vec<String>>,
-        #[arg(short, long)]
-        owner: Option<String>,
-        #[arg(short, long)]
-        sort: Option<String>,
-        #[arg(short, long)]
-        relevance: Option<bool>,
-        #[arg(short, long)]
-        limit: Option<i64>,
-        #[arg(long)]
-        offset: Option<i64>,
-    },
-    Plugin {
-        plugin_id: String,
-        #[command(subcommand)]
-        versions: Option<PluginVersions>,
-    },
-}
-
-#[derive(Subcommand)]
 enum PluginVersions {
     Version {
         #[arg(short, long, value_delimiter = ',')]
@@ -105,17 +103,107 @@ enum PluginVersions {
     },
 }
 
+struct SearchCommand {
+    search: Option<String>,
+    category: Option<Vec<String>>,
+    tags: Option<Vec<String>>,
+    owner: Option<String>,
+    sort: Option<String>,
+    relevance: Option<bool>,
+    limit: Option<i64>,
+    offset: Option<i64>,
+}
+
+impl SearchCommand {
+    fn new(
+        search: Option<String>,
+        category: Option<Vec<String>>,
+        tags: Option<Vec<String>>,
+        owner: Option<String>,
+        sort: Option<String>,
+        relevance: Option<bool>,
+        limit: Option<i64>,
+        offset: Option<i64>,
+    ) -> Self {
+        SearchCommand {
+            search,
+            category,
+            tags,
+            owner,
+            sort,
+            relevance,
+            limit,
+            offset,
+        }
+    }
+
+    async fn handle(self, ore_client: OreClient) -> Result<()> {
+        let e = query!(
+            "q" : QueryType::Value(&self.search),
+            "categories" : QueryType::Vec(&self.category),
+            "tags" : QueryType::Vec(&self.tags),
+            "owner" : QueryType::Value(&self.owner),
+            "sort" : QueryType::Value(&self.sort),
+            "relevance" : QueryType::Value(&self.relevance),
+            "limit" : QueryType::Value(&self.limit),
+            "offset" : QueryType::Value(&self.offset)
+        );
+        Ok(ProjectHandle::new(ore_client, Some(e))
+            .await
+            .projects()
+            .await?)
+    }
+}
+
+struct PluginCommand {
+    plugin_id: String,
+    name: Option<String>,
+    stats: Option<bool>,
+    tags: Option<Vec<String>>,
+    limit: Option<i64>,
+    offset: Option<i64>,
+}
+
+impl PluginCommand {
+    fn new(
+        plugin_id: String,
+        name: Option<String>,
+        stats: Option<bool>,
+        tags: Option<Vec<String>>,
+        limit: Option<i64>,
+        offset: Option<i64>,
+    ) -> Self {
+        PluginCommand {
+            plugin_id,
+            name,
+            stats,
+            tags,
+            limit,
+            offset,
+        }
+    }
+
+    async fn handle(self, ore_client: OreClient) -> Result<()> {
+        let e = query!(
+            "q" : QueryType::Value(&Some(self.plugin_id)),
+            "name" : QueryType::Value(&self.name),
+            "stats" : QueryType::Value(&self.stats),
+            "tags" : QueryType::Vec(&self.tags),
+            "limit" : QueryType::Value(&self.limit),
+            "offset" : QueryType::Value(&self.offset)
+        );
+
+        let mut proj_handle = ProjectHandle::new(ore_client, Some(e)).await;
+        return Ok(proj_handle.plugin().await?);
+    }
+}
+
 async fn handle_cli(cli: Cli) -> Result<()> {
     //Authorize the ore client
-    let mut ore_client = OreAuth::new().auth().await?;
+    let ore_client = OreAuth::default().auth().await?;
 
     //parse command
     match &cli.command {
-        Some(Commands::Permissions {}) => match ore_client.permissions().await {
-            Ok(res) => Ok(res),
-            Err(_) => return Ok(()),
-        },
-
         Some(Commands::Projects { search }) => match search {
             Some(subcmd) => match subcmd {
                 SubCommands::Search {
@@ -128,56 +216,55 @@ async fn handle_cli(cli: Cli) -> Result<()> {
                     limit,
                     offset,
                 } => {
-                    let e = query!(
-                        "q" : QueryType::Value(search),
-                        "categories" : QueryType::Vec(category),
-                        "tags" : QueryType::Vec(tags),
-                        "owner" : QueryType::Value(owner),
-                        "sort" : QueryType::Value(sort),
-                        "relevance" : QueryType::Value(relevance),
-                        "limit" : QueryType::Value(limit),
-                        "offset" : QueryType::Value(offset)
-                    );
-
-                    Ok(ProjectHandle::new(ore_client, Some(e))
-                        .await
-                        .projects()
-                        .await?)
+                    SearchCommand::new(
+                        search.clone(),
+                        category.clone(),
+                        tags.clone(),
+                        owner.clone(),
+                        sort.clone(),
+                        *relevance,
+                        *limit,
+                        *offset,
+                    )
+                    .handle(ore_client)
+                    .await
                 }
+
                 SubCommands::Plugin {
                     plugin_id,
                     versions,
-                } => Ok({
-                    let f = query!(
-                        "q" : QueryType::Value(&Some(plugin_id))
-                    );
-                    match versions {
-                        Some(PluginVersions::Version {
-                            name,
-                            stats,
-                            tags,
-                            limit,
-                            offset,
-                        }) => {
-                            let e = query!(
-                                "q" : QueryType::Value(&Some(plugin_id)),
-                                "name" : QueryType::Value(name),
-                                "stats" : QueryType::Value(stats),
-                                "tags" : QueryType::Vec(tags),
-                                "limit" : QueryType::Value(limit),
-                                "offset" : QueryType::Value(offset)
-                            );
-
-                            let mut proj_handle = ProjectHandle::new(ore_client, Some(e)).await;
-                            return Ok(proj_handle.plugin().await?);
-                        }
-                        None => {
-                            let mut proj_handle = ProjectHandle::new(ore_client, Some(f)).await;
-
-                            Ok::<(), Error>(proj_handle.plugin().await?)?
-                        }
+                } => match versions {
+                    Some(PluginVersions::Version {
+                        name,
+                        stats,
+                        tags,
+                        limit,
+                        offset,
+                    }) => {
+                        PluginCommand::new(
+                            plugin_id.to_string(),
+                            name.clone(),
+                            *stats,
+                            tags.clone().clone(),
+                            *limit,
+                            *offset,
+                        )
+                        .handle(ore_client)
+                        .await
                     }
-                }),
+
+                    None => {
+                        let mut proj_handle = ProjectHandle::new(
+                            ore_client,
+                            Some(query!(
+                                "q" : QueryType::Value(&Some(plugin_id))
+                            )),
+                        )
+                        .await;
+
+                        Ok(Ok::<(), Error>(proj_handle.plugin().await?)?)
+                    }
+                },
             },
             None => Ok(println!("Argument required!")),
         },
