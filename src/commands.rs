@@ -13,7 +13,7 @@ macro_rules! query {
                 let arg = match $val {
                     QueryType::Value(e) => {
                         match e {
-                            Some(value) => Some(vec![value.to_string()]),
+                            Some(value) => Some(vec![value.to_string().to_lowercase()]),
                             _ => None
                         }
                     },
@@ -53,7 +53,7 @@ pub enum Cli {
     Projects {
         /// A [`None`] value will return a list of plugins
         #[command(subcommand)]
-        search: Option<SubCommands>,
+        subcommand: SubCommands,
     },
 }
 
@@ -120,7 +120,7 @@ pub struct PluginCommand {
 #[derive(Subcommand)]
 enum PluginSubCommand {
     /// The version Subcommand
-    Version(PluginVersion),
+    Versions(PluginVersion),
 }
 
 #[derive(Parser)]
@@ -139,7 +139,7 @@ struct PluginVersion {
 impl PluginSubCommand {
     async fn handle(&self, plugin_id: &String, ore_client: &OreClient) -> Result<()> {
         let query = match self {
-            Self::Version(cmd) => {
+            Self::Versions(cmd) => {
                 query!(
                     "q" : QueryType::Value(&Some(&plugin_id)),
                     "tags" : QueryType::Vec(&cmd.tags),
@@ -156,13 +156,13 @@ impl PluginSubCommand {
 
 impl PluginCommand {
     pub async fn handle(&self, ore_client: &OreClient) -> Result<()> {
-        let query = query!(
-            "q" : QueryType::Value(&Some(&self.plugin_id)),
-        );
-
         if let Some(ver) = &self.versions {
             return Ok(ver.handle(&self.plugin_id, ore_client).await?);
         }
+
+        let query = query!(
+            "q" : QueryType::Value(&Some(&self.plugin_id)),
+        );
 
         let mut proj_handle = ProjectHandle::new(ore_client, Some(query));
 

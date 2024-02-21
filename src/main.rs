@@ -13,13 +13,9 @@ async fn handle_cli(cli: Cli) -> Result<()> {
 
     //parse command
     match &cli {
-        Cli::Projects { search } => match search {
-            Some(subcmd) => match subcmd {
-                SubCommands::Search(cmd) => Ok(cmd.handle(&ore_client).await?),
-
-                SubCommands::Plugin(cmd) => Ok(cmd.handle(&ore_client).await?),
-            },
-            None => Ok(println!("Subcommand required!")),
+        Cli::Projects { subcommand } => match subcommand {
+            SubCommands::Search(cmd) => Ok(cmd.handle(&ore_client).await?),
+            SubCommands::Plugin(cmd) => Ok(cmd.handle(&ore_client).await?),
         },
     }
 }

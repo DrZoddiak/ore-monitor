@@ -134,7 +134,7 @@ impl OreClient {
     // GET with String query
     async fn get_url_query(&self, url: String, query: Vec<(String, String)>) -> Result<Response> {
         let url = format!("{}{}", self.base_url, url);
-        let builder = self.client.get(url);
+        let builder = self.client.get(dbg!(url));
         let builder = self.apply_headers(builder);
         let builder = builder.query(&query);
         let res = builder.send().await?;
@@ -179,8 +179,15 @@ impl<'a> ProjectHandle<'a> {
 
     pub async fn plugin_version(&mut self) -> Result<()> {
         let res: Response = if let Some(query) = &self.query {
-            let link = format!("/projects/{}/versions", query.first().unwrap().1);
-            self.ore_client.get_url(link).await?
+            let link = format!(
+                "/projects/{}/versions",
+                query
+                    .iter()
+                    .filter(|k| k.0 == "q")
+                    .map(|f| f.1.clone())
+                    .collect::<String>()
+            );
+            self.ore_client.get_url_query(link, query.to_vec()).await?
         } else {
             return Ok(());
         };

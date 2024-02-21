@@ -1,6 +1,7 @@
 use std::fmt::Display;
 
 use chrono::{DateTime, Utc};
+use human_bytes::human_bytes;
 use serde::{Deserialize, Serialize};
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -110,9 +111,20 @@ impl Display for Version {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         writeln!(f, "========={}========", self.name)?;
         writeln!(f, "Author : {}", self.author.as_deref().unwrap_or_default())?;
-        writeln!(f, "Created at : {}", self.created_at)?;
+        writeln!(
+            f,
+            "Created at : {}",
+            self.created_at.parse::<DateTime<Utc>>().unwrap()
+        )?;
         writeln!(f, "Review State : {}", self.review_state)?;
-
+        writeln!(
+            f,
+            "Tags : {}",
+            self.tags
+                .iter()
+                .map(|t| format!("[{}] ", t))
+                .collect::<String>()
+        )?;
         //writeln!(
         //    f,
         //    "{}",
@@ -126,12 +138,6 @@ impl Display for Version {
         writeln!(f, "Downloads : {}", self.stats)?;
 
         writeln!(f, "{}", self.file_info)
-
-        //writeln!(
-        //    f,
-        //    "{}",
-        //    self.tags.iter().map(|t| t.to_string()).collect::<String>()
-        //)
     }
 }
 
@@ -149,15 +155,15 @@ impl Display for VersionStatsAll {
 #[derive(Serialize, Deserialize)]
 pub struct FileInfo {
     name: String,
-    size_bytes: i64,
+    size_bytes: f64,
     md_5_hash: Option<String>,
 }
 
 impl Display for FileInfo {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        writeln!(f, "#======File Info=======")?;
+        writeln!(f, "#=====[File Info]======")?;
         writeln!(f, "# Name : {}", self.name)?;
-        writeln!(f, "# Bytes : {}", self.size_bytes)?;
+        writeln!(f, "# Bytes : {}", human_bytes(self.size_bytes))?;
         writeln!(
             f,
             "# md_5 : {}",
@@ -176,9 +182,9 @@ pub struct VersionTag {
 
 impl Display for VersionTag {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        writeln!(f, "{}", self.name)?;
-        writeln!(f, "{}", self.data.as_deref().unwrap_or_default())?;
-        writeln!(f, "{}", self.color)
+        write!(f, "{}", self.name)?;
+        write!(f, ":{}", self.data.as_deref().unwrap_or_default())
+        //writeln!(f, "{}", self.color)
     }
 }
 
