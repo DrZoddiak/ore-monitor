@@ -1,5 +1,6 @@
 use crate::ore;
 use anyhow::{Ok, Result};
+use async_trait::async_trait;
 use clap::{Parser, Subcommand};
 use ore::{OreClient, ProjectHandle};
 use std::{collections::HashMap, fmt::Display};
@@ -92,8 +93,15 @@ pub struct SearchCommand {
     offset: Option<i64>,
 }
 
-impl SearchCommand {
-    pub async fn handle(&self, ore_client: &OreClient) -> Result<()> {
+/// Represents a regular Command
+#[async_trait]
+pub trait OreCommand {
+    async fn handle(&self, ore_client: &OreClient) -> Result<()>;
+}
+
+#[async_trait]
+impl OreCommand for SearchCommand {
+    async fn handle(&self, ore_client: &OreClient) -> Result<()> {
         let e = query!(
             "q" : QueryType::Value(&self.search),
             "categories" : QueryType::Vec(&self.category),
@@ -153,9 +161,9 @@ impl PluginSubCommand {
         return Ok(proj_handle.plugin_version().await?);
     }
 }
-
-impl PluginCommand {
-    pub async fn handle(&self, ore_client: &OreClient) -> Result<()> {
+#[async_trait]
+impl OreCommand for PluginCommand {
+    async fn handle(&self, ore_client: &OreClient) -> Result<()> {
         if let Some(ver) = &self.versions {
             return Ok(ver.handle(&self.plugin_id, ore_client).await?);
         }

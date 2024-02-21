@@ -2,9 +2,9 @@ mod commands;
 mod ore;
 mod paginated_project_result;
 
-use anyhow::{Ok, Result};
+use anyhow::Result;
 use clap::Parser;
-use commands::{Cli, SubCommands};
+use commands::{Cli, OreCommand, SubCommands};
 use ore::OreAuth;
 
 async fn handle_cli(cli: Cli) -> Result<()> {
@@ -12,12 +12,14 @@ async fn handle_cli(cli: Cli) -> Result<()> {
     let ore_client = OreAuth::default().auth().await?;
 
     //parse command
-    match &cli {
+    let cmd: &dyn OreCommand = match &cli {
         Cli::Projects { subcommand } => match subcommand {
-            SubCommands::Search(cmd) => Ok(cmd.handle(&ore_client).await?),
-            SubCommands::Plugin(cmd) => Ok(cmd.handle(&ore_client).await?),
+            SubCommands::Search(cmd) => cmd,
+            SubCommands::Plugin(cmd) => cmd,
         },
-    }
+    };
+
+    cmd.handle(&ore_client).await
 }
 
 #[tokio::main]
