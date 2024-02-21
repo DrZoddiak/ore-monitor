@@ -9,6 +9,7 @@ use reqwest::{
 };
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 
+use crate::paginated_project_result::PaginatedVersionResult;
 use crate::paginated_project_result::{PaginatedProjectResult, Project};
 
 #[derive(Debug)]
@@ -94,7 +95,7 @@ impl OreClient {
             StatusCode::FORBIDDEN => "Not enough permission for endpoint",
             _ => "Status code undocumented",
         };
-        //println!("Status Code : {}", msg)
+        //println!("Status Code :msg)
     }
 
     // Invalidates the current session
@@ -142,13 +143,13 @@ impl OreClient {
     }
 }
 
-pub struct ProjectHandle {
-    ore_client: OreClient,
+pub struct ProjectHandle<'a> {
+    ore_client: &'a OreClient,
     query: Option<Vec<(String, String)>>,
 }
 
-impl ProjectHandle {
-    pub async fn new(ore_client: OreClient, query: Option<Vec<(String, String)>>) -> Self {
+impl<'a> ProjectHandle<'a> {
+    pub fn new(ore_client: &'a OreClient, query: Option<Vec<(String, String)>>) -> Self {
         ProjectHandle { ore_client, query }
     }
 
@@ -173,6 +174,17 @@ impl ProjectHandle {
             return Ok(());
         };
         let res: Project = Self::serialize(Self::handle_response(res).await?)?;
+        Ok(print!("{}", res))
+    }
+
+    pub async fn plugin_version(&mut self) -> Result<()> {
+        let res: Response = if let Some(query) = &self.query {
+            let link = format!("/projects/{}/versions", query.first().unwrap().1);
+            self.ore_client.get_url(link).await?
+        } else {
+            return Ok(());
+        };
+        let res: PaginatedVersionResult = Self::serialize(Self::handle_response(res).await?)?;
         Ok(print!("{}", res))
     }
 
@@ -221,7 +233,7 @@ impl Display for Project {
                 .collect::<Vec<String>>()
                 .join("\n\t| ")
         )?;
-        writeln!(f, "Statistics : {}", self.stats)
+        writeln!(f, "{}", self.stats)
     }
 }
 
