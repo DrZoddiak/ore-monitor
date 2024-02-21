@@ -1,8 +1,10 @@
-use crate::ore;
+use crate::{models::{PaginatedProjectResult, PaginatedVersionResult, Project}, ore};
 use anyhow::{Ok, Result};
 use async_trait::async_trait;
 use clap::{Parser, Subcommand};
-use ore::{OreClient, ProjectHandle};
+use ore::OreClient;
+use reqwest::Response;
+use serde::de::DeserializeOwned;
 use std::{collections::HashMap, fmt::Display};
 
 macro_rules! query {
@@ -161,6 +163,7 @@ impl PluginSubCommand {
         return Ok(proj_handle.plugin_version().await?);
     }
 }
+
 #[async_trait]
 impl OreCommand for PluginCommand {
     async fn handle(&self, ore_client: &OreClient) -> Result<()> {
@@ -177,3 +180,74 @@ impl OreCommand for PluginCommand {
         return Ok(proj_handle.plugin().await?);
     }
 }
+
+pub struct ProjectHandle<'a> {
+    ore_client: &'a OreClient,
+    query: Option<Vec<(String, String)>>,
+}
+
+impl<'a> ProjectHandle<'a> {
+    pub fn new(ore_client: &'a OreClient, query: Option<Vec<(String, String)>>) -> Self {
+        ProjectHandle { ore_client, query }
+    }
+
+    // Gets projects from query input
+    pub(crate) async fn projects(&mut self) -> Result<()> {
+        let res: Response = if let Some(query) = &self.query {
+            self.ore_client
+                .get_url_query("/projects".to_string(), query.to_vec())
+                .await?
+        } else {
+            return Ok(());
+        };
+        let res: PaginatedProjectResult = Self::serialize(Self::handle_response(res).await?)?;
+        Ok(Self::display_results(res))
+    }
+
+    pub(crate) async fn plugin(&mut self) -> Result<()> {
+        let res: Response = if let Some(query) = &self.query {
+            let link = format!("/projects/{}", query.first().unwrap().1);
+            self.ore_client.get_url(link).await?
+        } else {
+            return Ok(());
+        };
+        let res: Project = Self::serialize(Self::handle_response(res).await?)?;
+        Ok(print!("{}", res))
+    }
+
+    pub async fn plugin_version(&mut self) -> Result<()> {
+        let res: Response = if let Some(query) = &self.query {
+            let link = format!(
+                "/projects/{}/versions",
+                query
+                    .iter()
+                    .filter(|k| k.0 == "q")
+                    .map(|f| f.1.clone())
+                    .collect::<String>()
+            );
+            self.ore_client.get_url_query(link, query.to_vec()).await?
+        } else {
+            return Ok(());
+        };
+        let res: PaginatedVersionResult = Self::serialize(Self::handle_response(res).await?)?;
+        Ok(print!("{}", res))
+    }
+
+    // Displays the results for Projects
+    fn display_results(result: PaginatedProjectResult) {
+        result
+            .result
+            .iter()
+            .for_each(|proj| println!("{}", proj.plugin_id))
+    }
+
+    fn serialize<T: DeserializeOwned>(txt: String) -> Result<T> {
+        serde_json::from_str(&txt).map_err(|e| anyhow::Error::from(e))
+    }
+
+    // Common method for projects to handle responses.
+    async fn handle_response(res: Response) -> Result<String> {
+        Ok(res.text().await?)
+    }
+}
+

@@ -1,6 +1,6 @@
 mod commands;
+mod models;
 mod ore;
-mod paginated_project_result;
 
 use anyhow::Result;
 use clap::Parser;
@@ -12,11 +12,11 @@ async fn handle_cli(cli: Cli) -> Result<()> {
     let ore_client = OreAuth::default().auth().await?;
 
     //parse command
-    let cmd: &dyn OreCommand = match &cli {
-        Cli::Projects { subcommand } => match subcommand {
-            SubCommands::Search(cmd) => cmd,
-            SubCommands::Plugin(cmd) => cmd,
-        },
+    let Cli::Projects { subcommand } = &cli;
+
+    let cmd: &dyn OreCommand = match subcommand {
+        SubCommands::Search(cmd) => cmd,
+        SubCommands::Plugin(cmd) => cmd,
     };
 
     cmd.handle(&ore_client).await
