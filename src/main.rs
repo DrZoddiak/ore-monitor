@@ -19,7 +19,7 @@ async fn handle_cli(cli: Cli) -> Result<()> {
 
                 SubCommands::Plugin(cmd) => Ok(cmd.handle(&ore_client).await?),
             },
-            None => Ok(println!("Argument required!")),
+            None => Ok(println!("Subcommand required!")),
         },
     }
 }

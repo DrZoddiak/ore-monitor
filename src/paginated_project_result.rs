@@ -1,5 +1,6 @@
 use std::fmt::Display;
 
+use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -38,6 +39,37 @@ pub struct Project {
     pub user_actions: UserActions,
     pub settings: ProjectSettings,
     pub icon_url: String,
+}
+
+impl Display for Project {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        writeln!(f, "Plugin : {}", self.name)?;
+        writeln!(f, "Author : {}", self.namespace.owner)?;
+        writeln!(f, "Description : {}", self.description)?;
+        writeln!(
+            f,
+            "Last Updated : {}",
+            self.last_updated.parse::<DateTime<Utc>>().unwrap()
+        )?;
+        writeln!(
+            f,
+            "Promoted Version : {}",
+            self.promoted_versions
+                .iter()
+                .map(|f| format!(
+                    "{} - {}",
+                    f.version.clone(),
+                    f.tags
+                        .iter()
+                        .map(|t| t.to_string())
+                        .collect::<Vec<String>>()
+                        .join("-")
+                ))
+                .collect::<Vec<String>>()
+                .join("\n\t| ")
+        )?;
+        writeln!(f, "{}", self.stats)
+    }
 }
 
 #[derive(Serialize, Deserialize)]

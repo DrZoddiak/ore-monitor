@@ -49,7 +49,9 @@ enum QueryType<'a, T: Display> {
 #[derive(Parser)]
 #[command(version)]
 pub enum Cli {
+    /// Main entrypoint for the commands.
     Projects {
+        /// A [`None`] value will return a list of plugins
         #[command(subcommand)]
         search: Option<SubCommands>,
     },
@@ -57,25 +59,35 @@ pub enum Cli {
 
 #[derive(Subcommand)]
 pub enum SubCommands {
+    /// Allows for searching for a list of plugins based off of the query
     Search(SearchCommand),
+    /// Retreives a plugin from its plugin_id
     Plugin(PluginCommand),
 }
 
 #[derive(Parser)]
 pub struct SearchCommand {
+    /// A search query
     search: Option<String>,
+    /// A comma separated list of Categories
     #[arg(short, long, value_delimiter = ',')]
     category: Option<Vec<String>>,
+    /// A comma seperated list of Tags
     #[arg(short, long, value_delimiter = ',')]
     tags: Option<Vec<String>>,
+    /// Searches for plugins from an Owner
     #[arg(short, long)]
     owner: Option<String>,
+    /// How to sort the plugins
     #[arg(short, long)]
     sort: Option<String>,
+    /// Should relevance be considered when sorting projects
     #[arg(short, long)]
     relevance: Option<bool>,
+    /// The maximum amount of plugins to display
     #[arg(short, long)]
     limit: Option<i64>,
+    /// Where to begin displaying the list from
     #[arg(long)]
     offset: Option<i64>,
 }
@@ -98,22 +110,28 @@ impl SearchCommand {
 
 #[derive(Parser)]
 pub struct PluginCommand {
+    /// The plugin ID to search by
     plugin_id: String,
+    /// A Subcommand for displaying versions of the plugin
     #[command(subcommand)]
     versions: Option<PluginSubCommand>,
 }
 
 #[derive(Subcommand)]
 enum PluginSubCommand {
+    /// The version Subcommand
     Version(PluginVersion),
 }
 
 #[derive(Parser)]
 struct PluginVersion {
+    /// Comma separated list of Tags
     #[arg(short, long, value_delimiter = ',')]
     tags: Option<Vec<String>>,
+    /// The limit of versions to display
     #[arg(short, long)]
     limit: Option<i64>,
+    /// Where to begin display the list from
     #[arg(long)]
     offset: Option<i64>,
 }

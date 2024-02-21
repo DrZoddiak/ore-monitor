@@ -1,8 +1,7 @@
-use std::{env, fmt::Display};
+use std::env;
 
 use anyhow::Ok;
 use anyhow::Result;
-use chrono::{DateTime, Utc};
 use reqwest::{
     header::{self, AUTHORIZATION},
     Client, RequestBuilder, Response, StatusCode,
@@ -46,6 +45,7 @@ impl Default for OreAuth {
             client: Default::default(),
             ore_session: Default::default(),
             base_url: "https://ore.spongepowered.org/api/v2".to_string(),
+            // Retreives key from Env Var or uses a key only capable of viewing public data.
             api_key: env::var("ORE_API_KEY")
                 .unwrap_or("d08a6c8b-3a9e-44c1-9c85-a7dfedba00f5".to_string()),
         }
@@ -203,37 +203,6 @@ impl<'a> ProjectHandle<'a> {
     // Common method for projects to handle responses.
     async fn handle_response(res: Response) -> Result<String> {
         Ok(res.text().await?)
-    }
-}
-
-impl Display for Project {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        writeln!(f, "Plugin : {}", self.name)?;
-        writeln!(f, "Author : {}", self.namespace.owner)?;
-        writeln!(f, "Description : {}", self.description)?;
-        writeln!(
-            f,
-            "Last Updated : {}",
-            self.last_updated.parse::<DateTime<Utc>>().unwrap()
-        )?;
-        writeln!(
-            f,
-            "Promoted Version : {}",
-            self.promoted_versions
-                .iter()
-                .map(|f| format!(
-                    "{} - {}",
-                    f.version.clone(),
-                    f.tags
-                        .iter()
-                        .map(|t| t.to_string())
-                        .collect::<Vec<String>>()
-                        .join("-")
-                ))
-                .collect::<Vec<String>>()
-                .join("\n\t| ")
-        )?;
-        writeln!(f, "{}", self.stats)
     }
 }
 
