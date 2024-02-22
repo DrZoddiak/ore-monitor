@@ -1,6 +1,8 @@
 use crate::{
-    models::{PaginatedProjectResult, PaginatedVersionResult, Project},
     ore,
+    sponge_schemas::{
+        Category, PaginatedProjectResult, PaginatedVersionResult, Project, ProjectSortingStrategy,
+    },
 };
 use anyhow::{Ok, Result};
 use async_trait::async_trait;
@@ -62,7 +64,7 @@ pub struct SearchCommand {
     search: Option<String>,
     /// A comma separated list of Categories
     #[arg(short, long, value_delimiter = ',')]
-    category: Option<Vec<String>>,
+    category: Option<Vec<Category>>,
     /// A comma seperated list of Tags
     #[arg(short, long, value_delimiter = ',')]
     tags: Option<Vec<String>>,
@@ -71,7 +73,7 @@ pub struct SearchCommand {
     owner: Option<String>,
     /// How to sort the plugins
     #[arg(short, long)]
-    sort: Option<String>,
+    sort: Option<ProjectSortingStrategy>,
     /// Should relevance be considered when sorting projects
     #[arg(short, long)]
     relevance: Option<bool>,
@@ -80,7 +82,8 @@ pub struct SearchCommand {
     limit: Option<i64>,
     /// Where to begin displaying the list from
     #[arg(long)]
-    offset: Option<i64>,
+    #[clap(default_value_t = 0)]
+    offset: i64,
 }
 
 /// Represents a regular Command
@@ -100,9 +103,9 @@ impl OreCommand for SearchCommand {
             "sort" : QueryType::Value(self.sort.as_ref()),
             "relevance" : QueryType::Value(self.relevance),
             "limit" : QueryType::Value(self.limit),
-            "offset" : QueryType::Value(self.offset)
+            "offset" : QueryType::Value(Some(self.offset))
         );
-        Ok(ProjectHandle::new(ore_client, Some(query)).search().await?)
+        Ok(ProjectHandle::new(ore_client, query).search().await?)
     }
 }
 
@@ -147,7 +150,7 @@ impl PluginSubCommand {
             }
         };
 
-        return Ok(ProjectHandle::new(ore_client, Some(query))
+        return Ok(ProjectHandle::new(ore_client, query)
             .plugin_version()
             .await?);
     }
@@ -164,79 +167,81 @@ impl OreCommand for PluginCommand {
             "q" : QueryType::Value(Some(&self.plugin_id)),
         );
 
-        return Ok(ProjectHandle::new(ore_client, Some(query)).plugin().await?);
+        return Ok(ProjectHandle::new(ore_client, query).plugin().await?);
     }
 }
 
 pub struct ProjectHandle {
     ore_client: OreClient,
-    query: Option<Vec<(String, String)>>,
+    query: Query,
+}
+
+struct Query {
+    query: Vec<(String, String)>,
+}
+
+impl Query {
+    fn new(query: Vec<(String, String)>) -> Self {
+        Query { query }
+    }
+
+    pub fn get_query(&self, key: &str) -> String {
+        self.query
+            .iter()
+            .filter(|k| k.0 == key)
+            .map(|f| f.1.to_string())
+            .collect::<String>()
+    }
+
+    fn to_vec(&self) -> Vec<(String, String)> {
+        self.query.to_vec()
+    }
 }
 
 impl ProjectHandle {
-    pub fn new(ore_client: OreClient, query: Option<Vec<(String, String)>>) -> Self {
-        ProjectHandle { ore_client, query }
+    pub fn new(ore_client: OreClient, query: Vec<(String, String)>) -> Self {
+        ProjectHandle {
+            ore_client,
+            query: Query::new(query),
+        }
     }
 
-    /// search [id]
+    /// search \[id]
     // Gets projects from query input
     pub async fn search(&mut self) -> Result<()> {
-        let res: Response = if let Some(query) = &self.query {
-            self.ore_client
-                .get_url_query("/projects".to_string(), query.to_vec())
-                .await?
-        } else {
-            return Ok(());
-        };
-        let res: PaginatedProjectResult = Self::serialize(Self::handle_response(res).await?)?;
-        Ok(Self::display_results(res))
+        let res: Response = self
+            .ore_client
+            .get_url_query("/projects".to_string(), self.query.to_vec())
+            .await?;
+        let res: PaginatedProjectResult = Self::serialize(res).await?;
+        Ok(println!("{}", res))
     }
 
     /// plugin {id}
     pub async fn plugin(&mut self) -> Result<()> {
-        let res: Response = if let Some(query) = &self.query {
-            let link = format!("/projects/{}", query.first().unwrap().1);
+        let res: Response = {
+            let link = format!("/projects/{}", self.query.get_query("q"));
             self.ore_client.get_url(link).await?
-        } else {
-            return Ok(());
         };
-        let res: Project = Self::serialize(Self::handle_response(res).await?)?;
+
+        let res: Project = Self::serialize(res).await?;
         Ok(print!("{}", res))
     }
 
     /// plugin {id} version
     pub async fn plugin_version(&mut self) -> Result<()> {
-        let res: Response = if let Some(query) = &self.query {
-            let link = format!(
-                "/projects/{}/versions",
-                query
-                    .iter()
-                    .filter(|k| k.0 == "q")
-                    .map(|f| f.1.clone())
-                    .collect::<String>()
-            );
-            self.ore_client.get_url_query(link, query.to_vec()).await?
-        } else {
-            return Ok(());
+        let res: Response = {
+            let link = format!("/projects/{}/versions", self.query.get_query("q"));
+            self.ore_client
+                .get_url_query(link, self.query.to_vec())
+                .await?
         };
-        let res: PaginatedVersionResult = Self::serialize(Self::handle_response(res).await?)?;
+
+        let res: PaginatedVersionResult = Self::serialize(res).await?;
         Ok(print!("{}", res))
     }
 
-    // Displays the results for Projects
-    fn display_results(result: PaginatedProjectResult) {
-        result
-            .result
-            .iter()
-            .for_each(|proj| println!("{}", proj.plugin_id))
-    }
-
-    fn serialize<T: DeserializeOwned>(txt: String) -> Result<T> {
-        serde_json::from_str(&txt).map_err(|e| anyhow::Error::from(e))
-    }
-
-    // Common method for projects to handle responses.
-    async fn handle_response(res: Response) -> Result<String> {
-        Ok(res.text().await?)
+    async fn serialize<T: DeserializeOwned>(txt: Response) -> Result<T> {
+        serde_json::from_str(&txt.text().await?).map_err(|e| anyhow::Error::from(e))
     }
 }

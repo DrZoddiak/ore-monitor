@@ -6,20 +6,14 @@ use reqwest::{
     header::{self, AUTHORIZATION},
     Client, RequestBuilder, Response, StatusCode,
 };
-use serde::{Deserialize, Serialize};
+
+use crate::sponge_schemas::ReturnedApiSession;
 
 #[derive(Debug)]
 pub struct OreClient {
     client: Client,
     session: OreSession,
     base_url: String,
-}
-
-#[derive(Serialize, Deserialize, Debug)]
-pub struct OreAuthResponse {
-    session: String,
-    expires: String,
-    r#type: String,
 }
 
 #[derive(Default, Debug)]
@@ -29,7 +23,7 @@ pub struct OreSession {
 }
 
 impl OreSession {
-    pub fn update(&mut self, response: OreAuthResponse) {
+    pub fn update(&mut self, response: ReturnedApiSession) {
         self.session_id = response.session;
         self.expires = response.expires;
     }
@@ -62,7 +56,7 @@ impl OreAuth {
     pub async fn auth(mut self) -> Result<OreClient> {
         let res = self.send_request().await;
         let res = res?.text().await?;
-        let res: OreAuthResponse = serde_json::from_str(&res)?;
+        let res: ReturnedApiSession = serde_json::from_str(&res)?;
         self.ore_session.update(res);
 
         Ok(OreClient::new(self.client, self.ore_session, self.base_url).await)

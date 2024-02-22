@@ -1,6 +1,6 @@
 mod commands;
-mod models;
 mod ore;
+mod sponge_schemas;
 
 use anyhow::Result;
 use clap::Parser;
@@ -22,8 +22,7 @@ async fn handle_cli(cli: Cli) -> Result<()> {
 
 #[tokio::main]
 async fn main() {
-    let e = handle_cli(Cli::parse()).await;
-    if let Err(err) = e {
-        println!("Error has occured : {err}")
+    if let Err(err) = handle_cli(Cli::parse()).await {
+        println!("Error has occured : {}", err)
     };
 }
