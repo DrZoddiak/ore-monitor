@@ -49,22 +49,11 @@ impl<'a, T: Display> Into<Option<Vec<String>>> for QueryType<'a, T> {
 #[derive(Parser)]
 #[command(version)]
 pub enum Cli {
-    /// Main entrypoint for the commands.
-    Projects {
-        /// A [`None`] value will return a list of plugins
-        #[command(subcommand)]
-        subcommand: SubCommands,
-    },
-}
-
-#[derive(Subcommand)]
-pub enum SubCommands {
     /// Allows for searching for a list of plugins based off of the query
     Search(SearchCommand),
     /// Retreives a plugin from its plugin_id
     Plugin(PluginCommand),
 }
-
 #[derive(Parser)]
 pub struct SearchCommand {
     /// A search query

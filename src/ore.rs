@@ -59,7 +59,7 @@ impl Default for OreAuth {
 /// Handles auth for Ore
 impl OreAuth {
     /// Main method for authorizing, This is also how the OreClient is created
-    pub(crate) async fn auth(mut self) -> Result<OreClient> {
+    pub async fn auth(mut self) -> Result<OreClient> {
         let res = self.send_request().await;
         let res = res?.text().await?;
         let res: OreAuthResponse = serde_json::from_str(&res)?;
@@ -94,7 +94,7 @@ impl OreClient {
     fn log_errors(code: StatusCode) {
         let msg = match code {
             // No Content is actually a "successful" error
-            //StatusCode::NO_CONTENT => Some("Session Invalidated"),
+            StatusCode::NO_CONTENT => None, //Some("Session Invalidated"),
             StatusCode::BAD_REQUEST => Some("Request not made with a session"),
             StatusCode::UNAUTHORIZED => Some("Api session missing, invalid, or expired"),
             StatusCode::FORBIDDEN => Some("Not enough permission for endpoint"),

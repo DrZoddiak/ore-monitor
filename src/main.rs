@@ -4,7 +4,7 @@ mod ore;
 
 use anyhow::Result;
 use clap::Parser;
-use commands::{Cli, OreCommand, SubCommands};
+use commands::{Cli, OreCommand};
 use ore::OreAuth;
 
 async fn handle_cli(cli: Cli) -> Result<()> {
@@ -12,11 +12,9 @@ async fn handle_cli(cli: Cli) -> Result<()> {
     let ore_client = OreAuth::default().auth().await?;
 
     //parse command
-    let Cli::Projects { subcommand } = &cli;
-
-    let cmd: &dyn OreCommand = match subcommand {
-        SubCommands::Search(cmd) => cmd,
-        SubCommands::Plugin(cmd) => cmd,
+    let cmd: &dyn OreCommand = match &cli {
+        Cli::Search(cmd) => cmd,
+        Cli::Plugin(cmd) => cmd,
     };
 
     cmd.handle(&ore_client).await
