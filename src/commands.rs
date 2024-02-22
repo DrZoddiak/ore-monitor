@@ -1,4 +1,7 @@
-use crate::{models::{PaginatedProjectResult, PaginatedVersionResult, Project}, ore};
+use crate::{
+    models::{PaginatedProjectResult, PaginatedVersionResult, Project},
+    ore,
+};
 use anyhow::{Ok, Result};
 use async_trait::async_trait;
 use clap::{Parser, Subcommand};
@@ -9,44 +12,38 @@ use std::{collections::HashMap, fmt::Display};
 
 macro_rules! query {
     ($($lit:literal : $val:expr),+ $(,)?) => {
-      {
-        let mut map: HashMap<String, Vec<String>> = Default::default();
+        {
+            let mut map: HashMap<String, Vec<String>> = Default::default();
 
             $(
-                let arg = match $val {
-                    QueryType::Value(e) => {
-                        match e {
-                            Some(value) => Some(vec![value.to_string().to_lowercase()]),
-                            _ => None
-                        }
-                    },
-                    QueryType::Vec(e) => {
-                        match e {
-                            Some(value) => Some(value.iter().map(|f| f.to_string()).collect()),
-                            _ => None
-                        }
-                    },
-                };
-
-                if let Some(args) = arg {
+                if let Some(args) = $val.into() {
                     map.insert($lit.to_string(), args)
                 } else {
                     None
-                }
-            ;)+
+                };
+            )+
 
-            let mut vec: Vec<(String, String)> = vec![];
-            map.iter().for_each(|f| {
-                f.1.iter().for_each(|e| vec.push((f.0.to_string(), e.to_string())))
-            });
-            vec
-      }
+
+            map.iter().map( |k| {
+                k.1.iter().map(|v| (k.0.to_string(), v.to_string()))
+            }).flatten().collect::<Vec<(String,String)>>()
+        }
     }
 }
 
 enum QueryType<'a, T: Display> {
     Vec(&'a Option<Vec<T>>),
     Value(&'a Option<T>),
+}
+
+impl<'a, T: Display> Into<Option<Vec<String>>> for QueryType<'a, T> {
+    fn into(self) -> Option<Vec<String>> {
+        match self {
+            QueryType::Value(Some(e)) => Some(vec![e.to_string().to_lowercase()]),
+            QueryType::Vec(Some(e)) => Some(e.iter().map(|f| f.to_string()).collect()),
+            _ => None,
+        }
+    }
 }
 
 #[derive(Parser)]
@@ -250,4 +247,3 @@ impl<'a> ProjectHandle<'a> {
         Ok(res.text().await?)
     }
 }
-
