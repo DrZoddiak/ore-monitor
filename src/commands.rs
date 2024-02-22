@@ -10,6 +10,7 @@ use reqwest::Response;
 use serde::de::DeserializeOwned;
 use std::{collections::HashMap, fmt::Display};
 
+/// Builds a set of arguments to build a query for a link
 macro_rules! query {
     ($($lit:literal : $val:expr),+ $(,)?) => {
         {
@@ -31,12 +32,12 @@ macro_rules! query {
     }
 }
 
-enum QueryType<'a, T: Display> {
-    Vec(&'a Option<Vec<T>>),
-    Value(&'a Option<T>),
+enum QueryType<T: Display> {
+    Vec(Option<Vec<T>>),
+    Value(Option<T>),
 }
 
-impl<'a, T: Display> Into<Option<Vec<String>>> for QueryType<'a, T> {
+impl<T: Display> Into<Option<Vec<String>>> for QueryType<T> {
     fn into(self) -> Option<Vec<String>> {
         match self {
             QueryType::Value(Some(e)) => Some(vec![e.to_string().to_lowercase()]),
@@ -54,6 +55,7 @@ pub enum Cli {
     /// Retreives a plugin from its plugin_id
     Plugin(PluginCommand),
 }
+
 #[derive(Parser)]
 pub struct SearchCommand {
     /// A search query
@@ -84,23 +86,23 @@ pub struct SearchCommand {
 /// Represents a regular Command
 #[async_trait]
 pub trait OreCommand {
-    async fn handle(&self, ore_client: &OreClient) -> Result<()>;
+    async fn handle(&self, ore_client: OreClient) -> Result<()>;
 }
 
 #[async_trait]
 impl OreCommand for SearchCommand {
-    async fn handle(&self, ore_client: &OreClient) -> Result<()> {
-        let e = query!(
-            "q" : QueryType::Value(&self.search),
-            "categories" : QueryType::Vec(&self.category),
-            "tags" : QueryType::Vec(&self.tags),
-            "owner" : QueryType::Value(&self.owner),
-            "sort" : QueryType::Value(&self.sort),
-            "relevance" : QueryType::Value(&self.relevance),
-            "limit" : QueryType::Value(&self.limit),
-            "offset" : QueryType::Value(&self.offset)
+    async fn handle(&self, ore_client: OreClient) -> Result<()> {
+        let query = query!(
+            "q" : QueryType::Value(self.search.as_ref()),
+            "categories" : QueryType::Vec(self.category.clone()),
+            "tags" : QueryType::Vec(self.tags.clone()),
+            "owner" : QueryType::Value(self.owner.as_ref()),
+            "sort" : QueryType::Value(self.sort.as_ref()),
+            "relevance" : QueryType::Value(self.relevance),
+            "limit" : QueryType::Value(self.limit),
+            "offset" : QueryType::Value(self.offset)
         );
-        Ok(ProjectHandle::new(ore_client, Some(e)).projects().await?)
+        Ok(ProjectHandle::new(ore_client, Some(query)).search().await?)
     }
 }
 
@@ -133,52 +135,52 @@ struct PluginVersion {
 }
 
 impl PluginSubCommand {
-    async fn handle(&self, plugin_id: &String, ore_client: &OreClient) -> Result<()> {
+    async fn handle(&self, plugin_id: String, ore_client: OreClient) -> Result<()> {
         let query = match self {
             Self::Versions(cmd) => {
                 query!(
-                    "q" : QueryType::Value(&Some(&plugin_id)),
-                    "tags" : QueryType::Vec(&cmd.tags),
-                    "limit" : QueryType::Value(&cmd.limit),
-                    "offset" : QueryType::Value(&cmd.offset)
+                    "q" : QueryType::Value(Some(plugin_id)),
+                    "tags" : QueryType::Vec(cmd.tags.clone()),
+                    "limit" : QueryType::Value(cmd.limit),
+                    "offset" : QueryType::Value(cmd.offset)
                 )
             }
         };
 
-        let mut proj_handle = ProjectHandle::new(ore_client, Some(query));
-        return Ok(proj_handle.plugin_version().await?);
+        return Ok(ProjectHandle::new(ore_client, Some(query))
+            .plugin_version()
+            .await?);
     }
 }
 
 #[async_trait]
 impl OreCommand for PluginCommand {
-    async fn handle(&self, ore_client: &OreClient) -> Result<()> {
+    async fn handle(&self, ore_client: OreClient) -> Result<()> {
         if let Some(ver) = &self.versions {
-            return Ok(ver.handle(&self.plugin_id, ore_client).await?);
+            return Ok(ver.handle(self.plugin_id.clone(), ore_client).await?);
         }
 
         let query = query!(
-            "q" : QueryType::Value(&Some(&self.plugin_id)),
+            "q" : QueryType::Value(Some(&self.plugin_id)),
         );
 
-        let mut proj_handle = ProjectHandle::new(ore_client, Some(query));
-
-        return Ok(proj_handle.plugin().await?);
+        return Ok(ProjectHandle::new(ore_client, Some(query)).plugin().await?);
     }
 }
 
-pub struct ProjectHandle<'a> {
-    ore_client: &'a OreClient,
+pub struct ProjectHandle {
+    ore_client: OreClient,
     query: Option<Vec<(String, String)>>,
 }
 
-impl<'a> ProjectHandle<'a> {
-    pub fn new(ore_client: &'a OreClient, query: Option<Vec<(String, String)>>) -> Self {
+impl ProjectHandle {
+    pub fn new(ore_client: OreClient, query: Option<Vec<(String, String)>>) -> Self {
         ProjectHandle { ore_client, query }
     }
 
+    /// search [id]
     // Gets projects from query input
-    pub(crate) async fn projects(&mut self) -> Result<()> {
+    pub async fn search(&mut self) -> Result<()> {
         let res: Response = if let Some(query) = &self.query {
             self.ore_client
                 .get_url_query("/projects".to_string(), query.to_vec())
@@ -190,7 +192,8 @@ impl<'a> ProjectHandle<'a> {
         Ok(Self::display_results(res))
     }
 
-    pub(crate) async fn plugin(&mut self) -> Result<()> {
+    /// plugin {id}
+    pub async fn plugin(&mut self) -> Result<()> {
         let res: Response = if let Some(query) = &self.query {
             let link = format!("/projects/{}", query.first().unwrap().1);
             self.ore_client.get_url(link).await?
@@ -201,6 +204,7 @@ impl<'a> ProjectHandle<'a> {
         Ok(print!("{}", res))
     }
 
+    /// plugin {id} version
     pub async fn plugin_version(&mut self) -> Result<()> {
         let res: Response = if let Some(query) = &self.query {
             let link = format!(

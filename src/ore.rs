@@ -83,7 +83,7 @@ impl OreAuth {
 }
 
 impl OreClient {
-    pub async fn new(client: Client, session: OreSession, base_url: String) -> Self {
+    async fn new(client: Client, session: OreSession, base_url: String) -> Self {
         OreClient {
             client,
             session,

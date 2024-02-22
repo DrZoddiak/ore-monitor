@@ -17,10 +17,13 @@ async fn handle_cli(cli: Cli) -> Result<()> {
         Cli::Plugin(cmd) => cmd,
     };
 
-    cmd.handle(&ore_client).await
+    cmd.handle(ore_client).await
 }
 
 #[tokio::main]
 async fn main() {
-    handle_cli(Cli::parse()).await.expect("No error")
+    let e = handle_cli(Cli::parse()).await;
+    if let Err(err) = e {
+        println!("Error has occured : {err}")
+    };
 }
