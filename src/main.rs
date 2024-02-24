@@ -17,7 +17,7 @@ async fn handle_cli(cli: Cli) -> Result<()> {
         Cli::Plugin(cmd) => cmd,
     };
 
-    cmd.handle(ore_client).await
+    cmd.handle(ore_client, None).await
 }
 
 #[tokio::main]

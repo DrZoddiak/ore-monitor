@@ -48,7 +48,7 @@ impl Display for Project {
                 .collect::<Vec<String>>()
                 .join("\n\t| ")
         )?;
-        writeln!(f, "{}", self.stats)
+        write!(f, "{}", self.stats)
     }
 }
 
@@ -60,32 +60,33 @@ pub struct Role {
 }
 
 #[derive(ValueEnum, Clone, Serialize, Deserialize, Debug)]
+#[serde(rename_all = "snake_case")]
 pub enum Category {
-    admin_tools,
-    chat,
-    dev_tools,
-    economy,
-    gameplay,
-    games,
-    protection,
-    role_playing,
-    world_management,
-    misc,
+    AdminTools,
+    Chat,
+    DevTools,
+    Economy,
+    Gameplay,
+    Games,
+    Protection,
+    RolePlaying,
+    WorldManagement,
+    Misc,
 }
 
 impl Display for Category {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let str = match self {
-            Category::admin_tools => "Admin Tools",
-            Category::chat => "Chat",
-            Category::dev_tools => "Dev Tools",
-            Category::economy => "Economy",
-            Category::gameplay => "Gameplay",
-            Category::games => "Games",
-            Category::protection => "Protection",
-            Category::role_playing => "Role Playing",
-            Category::world_management => "World Management",
-            Category::misc => "Misc",
+            Category::AdminTools => "admin_tools",
+            Category::Chat => "chat",
+            Category::DevTools => "dev_tools",
+            Category::Economy => "economy",
+            Category::Gameplay => "gameplay",
+            Category::Games => "games",
+            Category::Protection => "protection",
+            Category::RolePlaying => "role Playing",
+            Category::WorldManagement => "world_management",
+            Category::Misc => "misc",
         };
         write!(f, "{}", str)
     }
@@ -169,10 +170,12 @@ enum NamedPermissions {
     EditAllUserSettings,
 }
 
+#[derive(Serialize, Deserialize)]
 pub struct ApiSessionProperties {
     expires_in: Option<i64>,
 }
 
+#[derive(Serialize, Deserialize)]
 pub struct User {
     created_at: String,
     name: String,
@@ -189,8 +192,12 @@ pub struct VersionDependency {
 
 impl Display for VersionDependency {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        writeln!(f, "{}", self.plugin_id)?;
-        writeln!(f, "{}", self.version.as_deref().unwrap_or_default())
+        write!(
+            f,
+            "[{}{}]",
+            self.plugin_id,
+            self.version.as_deref().unwrap_or_default()
+        )
     }
 }
 
@@ -257,7 +264,7 @@ impl Display for Pagination {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         writeln!(f, "limit : {}", self.limit)?;
         writeln!(f, "offset : {}", self.offset)?;
-        writeln!(f, "count : {}", self.count)
+        write!(f, "count : {}", self.count)
     }
 }
 
@@ -278,7 +285,7 @@ impl Display for ProjectStatsAll {
         writeln!(f, "Downloads : {}", self.downloads)?;
         writeln!(f, "Recent Downloads : {}", self.recent_downloads)?;
         writeln!(f, "Stars : {}", self.stars)?;
-        writeln!(f, "Watchers : {}", self.watchers)
+        write!(f, "Watchers : {}", self.watchers)
     }
 }
 
@@ -305,9 +312,9 @@ pub struct PaginatedVersionResult {
 
 impl Display for PaginatedVersionResult {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        writeln!(
+        write!(
             f,
-            "{}",
+            "Dependencies : {}",
             self.result
                 .iter()
                 .map(|f| f.to_string())
@@ -338,7 +345,7 @@ pub struct FileInfo {
 
 impl Display for FileInfo {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        writeln!(f, "#=====[File Info]======")?;
+        writeln!(f, "{}", format!("{:=^45}", "[File Info]"))?;
         writeln!(f, "# Name : {}", self.name)?;
         writeln!(f, "# Bytes : {}", human_bytes(self.size_bytes))?;
         writeln!(
@@ -346,13 +353,15 @@ impl Display for FileInfo {
             "# md_5 : {}",
             self.md_5_hash.as_deref().unwrap_or("Not Available")
         )?;
-        writeln!(f, "#======================")
+        writeln!(f, "{}", format!("{:=^45}", ""))
     }
 }
+
 #[derive(Serialize, Deserialize, Debug)]
 pub struct VersionStatsDay {
     downloads: i64,
 }
+
 #[derive(ValueEnum, Clone, Serialize, Deserialize, Debug)]
 pub enum ProjectSortingStrategy {
     Stars,
@@ -397,7 +406,7 @@ pub struct Version {
 
 impl Display for Version {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        writeln!(f, "========={}========", self.name)?;
+        writeln!(f, "{}", format!("{:=^45}", self.name))?;
         writeln!(f, "Author : {}", self.author.as_deref().unwrap_or_default())?;
         writeln!(
             f,
@@ -413,19 +422,19 @@ impl Display for Version {
                 .map(|t| format!("[{}] ", t))
                 .collect::<String>()
         )?;
-        //writeln!(
-        //    f,
-        //    "{}",
-        //    self.dependencies
-        //        .iter()
-        //        .map(|d| d.to_string())
-        //        .collect::<String>()
-        //)?;
+        writeln!(
+            f,
+            "Dependencies : {}",
+            self.dependencies
+                .iter()
+                .map(|d| d.to_string())
+                .collect::<String>()
+        )?;
         //writeln!(f, "{}", self.visibility)?;
         //writeln!(f, "{}", self.description.as_deref().unwrap_or_default())?;
         writeln!(f, "Downloads : {}", self.stats)?;
 
-        writeln!(f, "{}", self.file_info)
+        write!(f, "{}", self.file_info)
     }
 }
 
@@ -438,7 +447,7 @@ pub struct VersionTagColor {
 impl Display for VersionTagColor {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         writeln!(f, "{}", self.foreground)?;
-        writeln!(f, "{}", self.background)
+        write!(f, "{}", self.background)
     }
 }
 #[derive(Serialize, Deserialize, Debug)]
@@ -469,6 +478,6 @@ pub struct VersionStatsAll {
 
 impl Display for VersionStatsAll {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        writeln!(f, "{}", self.downloads)
+        write!(f, "{}", self.downloads)
     }
 }

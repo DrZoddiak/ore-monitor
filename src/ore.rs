@@ -123,25 +123,17 @@ impl OreClient {
         Ok(())
     }
 
-    // GET plain request
-    pub async fn get_url(&self, url: String) -> Result<Response> {
-        let url = format!("{}{}", self.base_url, url);
+    pub async fn get(&self, url: String, query: Option<Vec<(String, String)>>) -> Result<Response> {
+        let url = self.base_url.to_string() + &url;
         let builder = self.client.get(url);
-        let res = self.apply_headers(builder).send().await?;
-        self.invalidate().await?;
-        Ok(res)
-    }
-
-    // GET with String query
-    pub async fn get_url_query(
-        &self,
-        url: String,
-        query: Vec<(String, String)>,
-    ) -> Result<Response> {
-        let url = format!("{}{}", self.base_url, url);
-        let builder = self.client.get(dbg!(url));
         let builder = self.apply_headers(builder);
-        let builder = builder.query(&query);
+
+        let builder = if let Some(query) = &query {
+            builder.query(&query)
+        } else {
+            builder
+        };
+
         let res = builder.send().await?;
         self.invalidate().await?;
         Ok(res)
