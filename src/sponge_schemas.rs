@@ -314,10 +314,11 @@ impl Display for PaginatedVersionResult {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(
             f,
-            "Dependencies : {}",
+            "{}",
             self.result
                 .iter()
                 .map(|f| f.to_string())
+                .rev()
                 .collect::<String>()
         )
         //writeln!(f, "Pagination : {}", self.pagination)
@@ -406,7 +407,7 @@ pub struct Version {
 
 impl Display for Version {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        writeln!(f, "{}", format!("{:=^45}", self.name))?;
+        writeln!(f, "{}", format!("{:=^45}", format!("[{}]", self.name)))?;
         writeln!(f, "Author : {}", self.author.as_deref().unwrap_or_default())?;
         writeln!(
             f,

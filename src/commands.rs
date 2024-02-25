@@ -114,7 +114,7 @@ pub enum Cli {
     Search(SearchCommand),
     /// Retreives info about a plugin from its plugin_id
     Plugin(PluginCommand),
-    // Installs a plugin from a plugin_id
+    /// Installs a plugin from a plugin_id
     Install(InstallCommand),
 }
 
