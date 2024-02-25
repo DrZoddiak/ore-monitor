@@ -52,7 +52,7 @@ impl Default for OreAuth {
 
 /// Handles auth for Ore
 impl OreAuth {
-    /// Main method for authorizing, This is also how the OreClient is created
+    /// Main method for authorizing, This is also how the [OreClient] is created
     pub async fn auth(mut self) -> Result<OreClient> {
         let res = self.send_request().await;
         let res = res?.text().await?;
@@ -89,9 +89,13 @@ impl OreClient {
         let msg = match code {
             // No Content is actually a "successful" error
             StatusCode::NO_CONTENT => None, //Some("Session Invalidated"),
+            StatusCode::OK => None,
             StatusCode::BAD_REQUEST => Some("Request not made with a session"),
             StatusCode::UNAUTHORIZED => Some("Api session missing, invalid, or expired"),
             StatusCode::FORBIDDEN => Some("Not enough permission for endpoint"),
+            StatusCode::NOT_FOUND => {
+                Some("Resource not found! Ensure you've used the correct identifiers")
+            }
             _ => Some("Unexpected Status Code"),
         };
         if let Some(m) = msg {
@@ -111,6 +115,7 @@ impl OreClient {
                 format!("OreApi session={}", self.session.session_id),
             )
             .header(header::ACCEPT, "application/json")
+            .header("User-Agent", "Ore-Monitor")
     }
 
     // Invalidates the current session
@@ -129,21 +134,28 @@ impl OreClient {
         query: Option<Vec<(String, String)>>,
     ) -> Result<Response> {
         let url = "https://ore.spongepowered.org".to_string() + &url;
-        let builder = self.client.get(url);
-        let builder = self.apply_headers(builder);
 
-        let builder = if let Some(query) = &query {
-            builder.query(&query)
-        } else {
-            builder
-        };
-
-        let res = builder.send().await?;
+        let res = self.common_get(url, query).await?;
+        // Since this request is not made with the API
+        // There is no need to invalidate the request
+        // self.invalidate().await?;
         Ok(res)
     }
 
     pub async fn get(&self, url: String, query: Option<Vec<(String, String)>>) -> Result<Response> {
         let url = self.base_url.to_string() + &url;
+        let res = self.common_get(url, query).await?;
+        Self::log_errors(res.status());
+        self.invalidate().await?;
+        Ok(res)
+    }
+
+    // This only exists as a workaround for installs
+    async fn common_get(
+        &self,
+        url: String,
+        query: Option<Vec<(String, String)>>,
+    ) -> Result<Response> {
         let builder = self.client.get(url);
         let builder = self.apply_headers(builder);
 
@@ -154,7 +166,6 @@ impl OreClient {
         };
 
         let res = builder.send().await?;
-        self.invalidate().await?;
         Ok(res)
     }
 }

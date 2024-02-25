@@ -1,15 +1,15 @@
 use crate::{
     ore,
     sponge_schemas::{
-        Category, CompactProject, PaginatedProjectResult, PaginatedVersionResult, Project,
-        ProjectSortingStrategy, Version,
+        Category, PaginatedProjectResult, PaginatedVersionResult, Project, ProjectSortingStrategy,
+        Version,
     },
 };
 use anyhow::{Ok, Result};
 use async_trait::async_trait;
 use clap::{Parser, Subcommand};
 use ore::OreClient;
-use reqwest::Response;
+use reqwest::{Response, StatusCode};
 use serde::de::DeserializeOwned;
 use std::{collections::HashMap, fmt::Display, io::Cursor};
 
@@ -242,10 +242,10 @@ impl OreCommand for PluginSubCommand {
         )
         .to_vec();
 
-        let link = dbg!(format!(
+        let link = format!(
             "/projects/{}/versions",
             link_query.unwrap().get_query("plugin_id")
-        ));
+        );
 
         if let Some(name) = &cmd.name {
             let link = format!("{}/{}", link, name);
@@ -272,19 +272,40 @@ impl OreCommand for InstallCommand {
     async fn handle(&self, ore_client: OreClient, _link_query: Option<Query>) -> Result<()> {
         let res = CommonCommandHandle::get_plugin_response(&self.plugin_id, &ore_client).await?;
 
-        let proj: Project = self.serialize(dbg!(res)).await?;
+        let proj: Project = self.serialize(res).await?;
 
         let link = format!(
             "/{}/{}/versions/{}/download",
-            proj.namespace.slug, self.plugin_id, self.version
+            proj.namespace.owner, proj.namespace.slug, self.version
         );
 
         let res = ore_client.get_install(link, None).await?;
 
-        let mut file = std::fs::File::create("Nucleus.jar".to_string())?;
+        if res.status() == StatusCode::NOT_FOUND {
+            return Err(anyhow::Error::msg(
+                "Resource not available, ensure you're using a valid ID & Version!",
+            ));
+        }
+
+        let default_file_name = "unknown_file_name";
+
+        let file_name = if let Some(headers) = res.headers().get("content-disposition") {
+            let (_, file_name) = headers.to_str()?.split_once('\"').unwrap_or_default();
+            let (file_name, _) = file_name
+                .rsplit_once('\"')
+                .unwrap_or((default_file_name, ""));
+            file_name
+        } else {
+            default_file_name
+        };
+
+        let dir = "local/".to_string() + file_name;
+
+        let mut file = std::fs::File::create(&dir)?;
         let mut content = Cursor::new(res.bytes().await?);
+
         std::io::copy(&mut content, &mut file)?;
 
-        Ok(println!("Ran Command"))
+        Ok(println!("Installed {}", dir))
     }
 }

@@ -23,7 +23,7 @@ pub struct Project {
 
 impl Display for Project {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        writeln!(f, "Plugin : {}", self.name)?;
+        writeln!(f, "Plugin ID : {}", self.namespace.slug)?;
         writeln!(f, "Author : {}", self.namespace.owner)?;
         writeln!(f, "Description : {}", self.description)?;
         writeln!(
@@ -194,7 +194,7 @@ impl Display for VersionDependency {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(
             f,
-            "[{}{}]",
+            "[{}:{}]",
             self.plugin_id,
             self.version.as_deref().unwrap_or_default()
         )
