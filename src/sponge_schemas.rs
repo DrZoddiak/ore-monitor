@@ -9,7 +9,7 @@ pub struct Project {
     created_at: String,
     plugin_id: String,
     name: String,
-    namespace: ProjectNamespace,
+    pub namespace: ProjectNamespace,
     promoted_versions: Vec<PromotedVersion>,
     stats: ProjectStatsAll,
     category: Category,
@@ -120,7 +120,7 @@ pub struct PromotedVersion {
 pub struct CompactProject {
     plugin_id: String,
     name: String,
-    namespace: ProjectNamespace,
+    pub namespace: ProjectNamespace,
     promoted_versions: Vec<PromotedVersion>,
     stats: ProjectStatsAll,
     category: Category,

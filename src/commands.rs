@@ -1,8 +1,8 @@
 use crate::{
     ore,
     sponge_schemas::{
-        Category, PaginatedProjectResult, PaginatedVersionResult, Project, ProjectSortingStrategy,
-        Version,
+        Category, CompactProject, PaginatedProjectResult, PaginatedVersionResult, Project,
+        ProjectSortingStrategy, Version,
     },
 };
 use anyhow::{Ok, Result};
@@ -11,7 +11,7 @@ use clap::{Parser, Subcommand};
 use ore::OreClient;
 use reqwest::Response;
 use serde::de::DeserializeOwned;
-use std::{collections::HashMap, fmt::Display};
+use std::{collections::HashMap, fmt::Display, io::Cursor};
 
 /// Builds a set of arguments to build a query for a link
 /// Returns a [Vec]<([String],[String])>
@@ -115,7 +115,7 @@ pub enum Cli {
     /// Retreives info about a plugin from its plugin_id
     Plugin(PluginCommand),
     // Installs a plugin from a plugin_id
-    //Install(InstallCommand),
+    Install(InstallCommand),
 }
 
 #[derive(Parser)]
@@ -190,11 +190,22 @@ impl OreCommand for PluginCommand {
             return Ok(ver.handle(ore_client, Some(query)).await?);
         }
 
-        let link = format!("/projects/{}", query.get_query("plugin_id"));
-        let res = ore_client.get(link, None).await?;
+        let res =
+            CommonCommandHandle::get_plugin_response(&query.get_query("plugin_id"), &ore_client)
+                .await?;
+
         let res: Project = self.serialize(res).await?;
 
         Ok(self.print_res(res)?)
+    }
+}
+
+struct CommonCommandHandle {}
+
+impl CommonCommandHandle {
+    async fn get_plugin_response(plugin_id: &String, ore_client: &OreClient) -> Result<Response> {
+        let link = format!("/projects/{}", plugin_id);
+        Ok(ore_client.get(link, None).await?)
     }
 }
 
@@ -202,6 +213,21 @@ impl OreCommand for PluginCommand {
 enum PluginSubCommand {
     /// The version Subcommand
     Versions(PluginVersionCommand),
+}
+
+#[derive(Parser)]
+struct PluginVersionCommand {
+    /// Version ID to inspect
+    name: Option<String>,
+    /// Comma separated list of Tags
+    #[arg(short, long, value_delimiter = ',')]
+    tags: Option<Vec<String>>,
+    /// The limit of versions to display
+    #[arg(short, long)]
+    limit: Option<i64>,
+    /// Where to begin display the list from
+    #[arg(long)]
+    offset: Option<i64>,
 }
 
 #[async_trait]
@@ -236,16 +262,29 @@ impl OreCommand for PluginSubCommand {
 }
 
 #[derive(Parser)]
-struct PluginVersionCommand {
-    /// Version ID to inspect
-    name: Option<String>,
-    /// Comma separated list of Tags
-    #[arg(short, long, value_delimiter = ',')]
-    tags: Option<Vec<String>>,
-    /// The limit of versions to display
-    #[arg(short, long)]
-    limit: Option<i64>,
-    /// Where to begin display the list from
-    #[arg(long)]
-    offset: Option<i64>,
+pub struct InstallCommand {
+    plugin_id: String,
+    version: String,
+}
+
+#[async_trait]
+impl OreCommand for InstallCommand {
+    async fn handle(&self, ore_client: OreClient, _link_query: Option<Query>) -> Result<()> {
+        let res = CommonCommandHandle::get_plugin_response(&self.plugin_id, &ore_client).await?;
+
+        let proj: Project = self.serialize(dbg!(res)).await?;
+
+        let link = format!(
+            "/{}/{}/versions/{}/download",
+            proj.namespace.slug, self.plugin_id, self.version
+        );
+
+        let res = ore_client.get_install(link, None).await?;
+
+        let mut file = std::fs::File::create("Nucleus.jar".to_string())?;
+        let mut content = Cursor::new(res.bytes().await?);
+        std::io::copy(&mut content, &mut file)?;
+
+        Ok(println!("Ran Command"))
+    }
 }

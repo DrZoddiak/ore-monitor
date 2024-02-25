@@ -95,7 +95,7 @@ impl OreClient {
             _ => Some("Unexpected Status Code"),
         };
         if let Some(m) = msg {
-            println!("{}", m)
+            println!("Status Error : {}", m)
         }
     }
 
@@ -114,13 +114,32 @@ impl OreClient {
     }
 
     // Invalidates the current session
-    pub async fn invalidate(&self) -> Result<()> {
+    async fn invalidate(&self) -> Result<()> {
         let builder = self
             .client
             .delete(format!("{}/sessions/current", self.base_url));
         let res = self.apply_headers(builder).send().await?;
         Self::log_errors(res.status());
         Ok(())
+    }
+
+    pub async fn get_install(
+        &self,
+        url: String,
+        query: Option<Vec<(String, String)>>,
+    ) -> Result<Response> {
+        let url = "https://ore.spongepowered.org".to_string() + &url;
+        let builder = self.client.get(url);
+        let builder = self.apply_headers(builder);
+
+        let builder = if let Some(query) = &query {
+            builder.query(&query)
+        } else {
+            builder
+        };
+
+        let res = builder.send().await?;
+        Ok(res)
     }
 
     pub async fn get(&self, url: String, query: Option<Vec<(String, String)>>) -> Result<Response> {
