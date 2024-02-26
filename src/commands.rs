@@ -11,7 +11,12 @@ use clap::{Parser, Subcommand};
 use ore::OreClient;
 use reqwest::{Response, StatusCode};
 use serde::de::DeserializeOwned;
-use std::{collections::HashMap, fmt::Display, io::Cursor};
+use std::{
+    collections::HashMap,
+    fmt::Display,
+    io::Cursor,
+    path::{Path, PathBuf},
+};
 
 /// Builds a set of arguments to build a query for a link
 /// Returns a [Vec]<([String],[String])>
@@ -211,7 +216,7 @@ impl CommonCommandHandle {
 
 #[derive(Subcommand)]
 enum PluginSubCommand {
-    /// The version Subcommand
+    /// Shows a list of available versions
     Versions(PluginVersionCommand),
 }
 
@@ -263,43 +268,66 @@ impl OreCommand for PluginSubCommand {
 
 #[derive(Parser)]
 pub struct InstallCommand {
+    /// Directory to install into
+    #[arg(short, long)]
+    dir: Option<PathBuf>,
+    /// The plugin id to install
     plugin_id: String,
+    /// The version to install
     version: String,
 }
 
 #[async_trait]
 impl OreCommand for InstallCommand {
     async fn handle(&self, ore_client: OreClient, _link_query: Option<Query>) -> Result<()> {
+        // This whole command is basically a workaround for the API not having a download link available
+        // This response allows me to generate the owner:slug information for a valid link to download
         let res = CommonCommandHandle::get_plugin_response(&self.plugin_id, &ore_client).await?;
 
         let proj: Project = self.serialize(res).await?;
 
+        // This is a link for the main website, in the same way users would
+        // retrieve a file.
         let link = format!(
             "/{}/{}/versions/{}/download",
             proj.namespace.owner, proj.namespace.slug, self.version
         );
 
+        // get_install uses a modified base_url to function
         let res = ore_client.get_install(link, None).await?;
 
+        // Proper error handling is needed here
+        // should probably check for a successful status code instead
         if res.status() == StatusCode::NOT_FOUND {
             return Err(anyhow::Error::msg(
                 "Resource not available, ensure you're using a valid ID & Version!",
             ));
         }
 
-        let default_file_name = "unknown_file_name";
+        let default_file_name = "unknown_file";
 
-        let file_name = if let Some(headers) = res.headers().get("content-disposition") {
-            let (_, file_name) = headers.to_str()?.split_once('\"').unwrap_or_default();
-            let (file_name, _) = file_name
-                .rsplit_once('\"')
-                .unwrap_or((default_file_name, ""));
-            file_name
-        } else {
-            default_file_name
-        };
+        // Because we don't install from the API, we have to retrieve the file name from where available.
+        let file_name =
+            if let Some(headers) = res.headers().get(reqwest::header::CONTENT_DISPOSITION) {
+                // Here we remove all contents (inclusive) to the first quote "
+                // Then all contents are removed after the last quote (also inclusive)
+                let (_, file_name) = headers.to_str()?.split_once('\"').unwrap_or_default();
+                let (file_name, _) = file_name
+                    .rsplit_once('\"')
+                    .unwrap_or((default_file_name, ""));
+                file_name
+            } else {
+                default_file_name
+            };
 
-        let dir = "local/".to_string() + file_name;
+        let dir = self
+            .dir
+            .as_deref()
+            .unwrap_or_else(|| Path::new(""))
+            .display()
+            .to_string();
+
+        let dir = dir + file_name;
 
         let mut file = std::fs::File::create(&dir)?;
         let mut content = Cursor::new(res.bytes().await?);
