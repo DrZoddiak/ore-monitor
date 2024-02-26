@@ -69,9 +69,9 @@ Install a plugin with the plugin's ID and the name of the version
 
 ### Future Plans
 
-- [] Update checking
-- [] Version upgrading
-- [] Detect current server version and display contextual data. *ex: If the server is API8, display API8 versions first.*
+- [ ] Update checking
+- [ ] Version upgrading
+- [ ] Detect current server version and display contextual data. *ex: If the server is API8, display API8 versions first.*
 
 ### Special Thanks
 
