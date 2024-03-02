@@ -1,96 +1,19 @@
-use crate::{
-    ore,
-    sponge_schemas::{
-        Category, PaginatedProjectResult, PaginatedVersionResult, Project, ProjectSortingStrategy,
-        Version,
-    },
+use crate::ore::OreClient;
+use crate::sponge_schemas::{
+    Category, PaginatedProjectResult, PaginatedVersionResult, Project, ProjectSortingStrategy,
+    Version,
 };
 use anyhow::{Ok, Result};
 use async_trait::async_trait;
 use clap::{Parser, Subcommand};
-use ore::OreClient;
+use common::{query, Query};
 use reqwest::{Response, StatusCode};
 use serde::de::DeserializeOwned;
 use std::{
-    collections::HashMap,
     fmt::Display,
     io::Cursor,
     path::{Path, PathBuf},
 };
-
-/// Builds a set of arguments to build a query for a link
-/// Returns a [Vec]<([String],[String])>
-///
-/// Takes a [str] and [QueryType]
-/// ```
-/// query! {
-///     // Would return [("q","value")]
-///     "q" : QueryType::Value(Some("value")),
-///     // Would return [("list","one")("list","two")("list",three)]
-///     "list" : QueryType::Vec(Some(vec!["one","two","three"])),
-///     ...
-/// }
-/// ```
-macro_rules! query {
-    ($($lit:literal : $val:expr),+ $(,)?) => {
-        {
-            let mut map: HashMap<String, Vec<String>> = Default::default();
-
-            $(
-                if let Some(args) = $val.into() {
-                    map.insert($lit.to_string(), args)
-                } else {
-                    None
-                };
-            )+
-
-
-            let query = map.iter().map( |k| {
-                k.1.iter().map(|v| (k.0.to_string(), v.to_string()))
-            }).flatten().collect::<Vec<(String,String)>>();
-            Query::new(query)
-        }
-    }
-}
-
-/// Differentiates the difference between a Vec and Non-Vec value
-/// For the purposes of providing a clean [Display] impl
-enum QueryType<T: Display> {
-    Vec(Option<Vec<T>>),
-    Value(Option<T>),
-}
-
-impl<T: Display> Into<Option<Vec<String>>> for QueryType<T> {
-    fn into(self) -> Option<Vec<String>> {
-        match self {
-            QueryType::Value(Some(e)) => Some(vec![e.to_string().to_lowercase()]),
-            QueryType::Vec(Some(e)) => Some(e.iter().map(|f| f.to_string()).collect()),
-            _ => None,
-        }
-    }
-}
-
-pub struct Query {
-    query: Vec<(String, String)>,
-}
-
-impl Query {
-    fn new(query: Vec<(String, String)>) -> Self {
-        Query { query }
-    }
-
-    pub fn get_query(&self, key: &str) -> String {
-        self.query
-            .iter()
-            .filter(|k| k.0 == key)
-            .map(|f| f.1.to_string())
-            .collect::<String>()
-    }
-
-    fn to_vec(&self) -> Vec<(String, String)> {
-        self.query.to_vec()
-    }
-}
 
 /// Represents a regular Command
 #[async_trait]
@@ -112,6 +35,7 @@ pub trait OreCommand {
     }
 }
 
+/// Represents the "root" commands
 #[derive(Parser)]
 #[command(version)]
 pub enum Cli {
@@ -123,6 +47,7 @@ pub enum Cli {
     Install(InstallCommand),
 }
 
+/// Enables the searching of plugins based on a query if provided
 #[derive(Parser)]
 pub struct SearchCommand {
     /// A search query
@@ -175,6 +100,7 @@ impl OreCommand for SearchCommand {
     }
 }
 
+/// Retreives project information about a plugin
 #[derive(Parser)]
 pub struct PluginCommand {
     /// The plugin ID to search by
@@ -205,6 +131,7 @@ impl OreCommand for PluginCommand {
     }
 }
 
+/// Provides common code for commands to use
 struct CommonCommandHandle {}
 
 impl CommonCommandHandle {
@@ -214,12 +141,14 @@ impl CommonCommandHandle {
     }
 }
 
+/// Represents subcommands of [PluginCommand]
 #[derive(Subcommand)]
 enum PluginSubCommand {
     /// Shows a list of available versions
     Versions(PluginVersionCommand),
 }
 
+/// A subcommand of [PluginCommand] that shows all available versions
 #[derive(Parser)]
 struct PluginVersionCommand {
     /// Version ID to inspect
@@ -266,6 +195,7 @@ impl OreCommand for PluginSubCommand {
     }
 }
 
+/// A command to Install plugins
 #[derive(Parser)]
 pub struct InstallCommand {
     /// Directory to install into
@@ -275,6 +205,15 @@ pub struct InstallCommand {
     plugin_id: String,
     /// The version to install
     version: String,
+}
+
+impl InstallCommand {
+    const DEFAULT_FILE_NAME: &'static str = "unknown_file";
+    pub fn extract_filename(headers: &str) -> Option<&str> {
+        let start = headers.find('"')?;
+        let end = headers.rfind('"')?;
+        (start != end).then_some(&headers[start + 1..end])
+    }
 }
 
 #[async_trait]
@@ -304,21 +243,14 @@ impl OreCommand for InstallCommand {
             ));
         }
 
-        let default_file_name = "unknown_file";
-
         // Because we don't install from the API, we have to retrieve the file name from where available.
-        let file_name =
-            if let Some(headers) = res.headers().get(reqwest::header::CONTENT_DISPOSITION) {
-                // Here we remove all contents (inclusive) to the first quote "
-                // Then all contents are removed after the last quote (also inclusive)
-                let (_, file_name) = headers.to_str()?.split_once('\"').unwrap_or_default();
-                let (file_name, _) = file_name
-                    .rsplit_once('\"')
-                    .unwrap_or((default_file_name, ""));
-                file_name
-            } else {
-                default_file_name
-            };
+        let file_name = res
+            .headers()
+            .get(reqwest::header::CONTENT_DISPOSITION)
+            .and_then(|s| Some(s.to_str()))
+            .and_then(|f| Some(f.unwrap_or(Self::DEFAULT_FILE_NAME)))
+            .and_then(|header| Self::extract_filename(header))
+            .unwrap_or(Self::DEFAULT_FILE_NAME);
 
         let dir = self
             .dir
