@@ -19,8 +19,6 @@ async fn handle_cli(cli: Cli) -> Result<()> {
         Cli::Plugin(cmd) => cmd.handle(ore_client, None).await,
         Cli::Install(cmd) => cmd.handle(ore_client, None).await,
     }
-
-    //cmd.handle(ore_client, None).await
 }
 
 /// Entrypoint for the application

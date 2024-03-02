@@ -110,6 +110,13 @@ pub struct PluginCommand {
     versions: Option<PluginSubCommand>,
 }
 
+macro_rules! plugin_response {
+    ($plugin_id:expr,$ore_client:expr) => {{
+        let link = format!("/projects/{}", $plugin_id);
+        $ore_client.get(link, None).await?
+    }};
+}
+
 #[async_trait]
 impl OreCommand for PluginCommand {
     async fn handle(&self, ore_client: OreClient, _link_query: Option<Query>) -> Result<()> {
@@ -121,23 +128,11 @@ impl OreCommand for PluginCommand {
             return Ok(ver.handle(ore_client, Some(query)).await?);
         }
 
-        let res =
-            CommonCommandHandle::get_plugin_response(&query.get_query("plugin_id"), &ore_client)
-                .await?;
+        let res = plugin_response!(query.get_query("plugin_id"), &ore_client);
 
         let res: Project = self.serialize(res).await?;
 
         Ok(self.print_res(res)?)
-    }
-}
-
-/// Provides common code for commands to use
-struct CommonCommandHandle {}
-
-impl CommonCommandHandle {
-    async fn get_plugin_response(plugin_id: &String, ore_client: &OreClient) -> Result<Response> {
-        let link = format!("/projects/{}", plugin_id);
-        Ok(ore_client.get(link, None).await?)
     }
 }
 
@@ -221,7 +216,8 @@ impl OreCommand for InstallCommand {
     async fn handle(&self, ore_client: OreClient, _link_query: Option<Query>) -> Result<()> {
         // This whole command is basically a workaround for the API not having a download link available
         // This response allows me to generate the owner:slug information for a valid link to download
-        let res = CommonCommandHandle::get_plugin_response(&self.plugin_id, &ore_client).await?;
+        let res = plugin_response!(self.plugin_id, &ore_client);
+        //Self::get_plugin_response(&self.plugin_id, &ore_client).await?;
 
         let proj: Project = self.serialize(res).await?;
 
@@ -255,9 +251,11 @@ impl OreCommand for InstallCommand {
         let dir = self
             .dir
             .as_deref()
-            .unwrap_or_else(|| Path::new(""))
-            .display()
-            .to_string();
+            .and_then(|f| Some(f.display()))
+            .and_then(|f| Some(f.to_string()))
+            .unwrap_or(".".to_string());
+
+        let message = format!("Installed '{}' into '{}'", file_name, dir);
 
         let dir = dir + file_name;
 
@@ -266,6 +264,6 @@ impl OreCommand for InstallCommand {
 
         std::io::copy(&mut content, &mut file)?;
 
-        Ok(println!("Installed {}", dir))
+        Ok(println!("{}", message))
     }
 }
