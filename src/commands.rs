@@ -217,7 +217,6 @@ impl OreCommand for InstallCommand {
         // This whole command is basically a workaround for the API not having a download link available
         // This response allows me to generate the owner:slug information for a valid link to download
         let res = plugin_response!(self.plugin_id, &ore_client);
-        //Self::get_plugin_response(&self.plugin_id, &ore_client).await?;
 
         let proj: Project = self.serialize(res).await?;
 
