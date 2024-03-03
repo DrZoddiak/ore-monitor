@@ -1,4 +1,9 @@
-use std::fmt::Display;
+use std::{
+    fmt::Display,
+    fs::File,
+    io::{BufReader, Result},
+    path::PathBuf,
+};
 
 /// Builds a set of arguments to build a query for a link
 /// Returns a [Vec]<([String],[String])>
@@ -85,5 +90,22 @@ impl<T: Display> Into<Option<Vec<String>>> for QueryType<T> {
             QueryType::Vec(Some(e)) => Some(e.iter().map(|f| f.to_string()).collect()),
             _ => None,
         }
+    }
+}
+
+struct FileReader {
+    path: PathBuf,
+}
+
+impl FileReader {
+    fn handle_file(&self) -> Result<()> {
+        let file = File::open(&self.path)?;
+        let reader = BufReader::new(file);
+
+        
+
+        
+
+        Ok(println!("isFile"))
     }
 }

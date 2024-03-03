@@ -18,6 +18,7 @@ async fn handle_cli(cli: Cli) -> Result<()> {
         Cli::Search(cmd) => cmd.handle(ore_client, None).await,
         Cli::Plugin(cmd) => cmd.handle(ore_client, None).await,
         Cli::Install(cmd) => cmd.handle(ore_client, None).await,
+        Cli::Check(cmd) => cmd.handle(ore_client, None).await,
     }
 }
 

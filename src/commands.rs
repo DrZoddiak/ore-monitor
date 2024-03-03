@@ -7,13 +7,13 @@ use anyhow::{Ok, Result};
 use async_trait::async_trait;
 use clap::{Parser, Subcommand};
 use common::{query, Query};
+use core::result::Result::Ok as ok;
+use std::io::{BufRead, BufReader};
 use reqwest::{Response, StatusCode};
 use serde::de::DeserializeOwned;
-use std::{
-    fmt::Display,
-    io::Cursor,
-    path::{Path, PathBuf},
-};
+use std::fs::{self, File};
+use std::path::Path;
+use std::{fmt::Display, io::Cursor, path::PathBuf};
 
 /// Represents a regular Command
 #[async_trait]
@@ -45,6 +45,8 @@ pub enum Cli {
     Plugin(PluginCommand),
     /// Installs a plugin from a plugin_id
     Install(InstallCommand),
+    /// Checks the version(s) and compares them against Ore
+    Check(VersionCheckCommand),
 }
 
 /// Enables the searching of plugins based on a query if provided
@@ -264,5 +266,50 @@ impl OreCommand for InstallCommand {
         std::io::copy(&mut content, &mut file)?;
 
         Ok(println!("{}", message))
+    }
+}
+
+#[derive(Parser)]
+pub struct VersionCheckCommand {
+    /// path to file(s) to check otherwise checks where it was ran from
+    #[clap(default_value = ".")]
+    file: PathBuf,
+}
+
+impl VersionCheckCommand {
+    fn handle_path(&self) -> Result<()> {
+        if self.file.is_dir() {
+            self.handle_dir()
+        } else if self.file.is_file() {
+            self.handle_file()
+        } else {
+            todo!("Handle errors here")
+        }
+    }
+
+    fn handle_dir(&self) -> Result<()> {
+        let diriter = self.file.read_dir().iter();
+
+        Ok(())
+    }
+
+    fn handle_file(&self) -> Result<()> {
+        let file = File::open(&self.file)?;
+        let reader = BufReader::new(file);
+
+        Ok(println!("isFile"))
+    }
+
+    fn check_file_ext() -> Result<()> {
+        Ok(())
+    }
+}
+
+#[async_trait]
+impl OreCommand for VersionCheckCommand {
+    async fn handle(&self, ore_client: OreClient, _link_query: Option<Query>) -> Result<()> {
+        self.handle_path()?;
+
+        Ok(println!("Ok!"))
     }
 }
