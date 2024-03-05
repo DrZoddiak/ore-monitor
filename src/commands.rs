@@ -6,13 +6,10 @@ use crate::sponge_schemas::{
 use anyhow::{Ok, Result};
 use async_trait::async_trait;
 use clap::{Parser, Subcommand};
-use common::{query, Query};
-use core::result::Result::Ok as ok;
-use std::io::{BufRead, BufReader};
+use common::{query, FileReader, Query};
 use reqwest::{Response, StatusCode};
 use serde::de::DeserializeOwned;
-use std::fs::{self, File};
-use std::path::Path;
+
 use std::{fmt::Display, io::Cursor, path::PathBuf};
 
 /// Represents a regular Command
@@ -278,29 +275,16 @@ pub struct VersionCheckCommand {
 
 impl VersionCheckCommand {
     fn handle_path(&self) -> Result<()> {
+
+        let reader = FileReader::from(self.file.clone());
+
         if self.file.is_dir() {
-            self.handle_dir()
+            println!("{:?}",reader.handle_dir()?);
         } else if self.file.is_file() {
-            self.handle_file()
+            println!("{:?}",reader.handle_file(None)?);
         } else {
-            todo!("Handle errors here")
-        }
-    }
-
-    fn handle_dir(&self) -> Result<()> {
-        let diriter = self.file.read_dir().iter();
-
-        Ok(())
-    }
-
-    fn handle_file(&self) -> Result<()> {
-        let file = File::open(&self.file)?;
-        let reader = BufReader::new(file);
-
-        Ok(println!("isFile"))
-    }
-
-    fn check_file_ext() -> Result<()> {
+            println!("Nothing to see here!");
+        };
         Ok(())
     }
 }

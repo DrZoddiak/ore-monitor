@@ -1,9 +1,12 @@
 use std::{
     fmt::Display,
-    fs::File,
-    io::{BufReader, Result},
+    fs::{self, File},
+    io::{BufReader, ErrorKind, Read, Result},
     path::PathBuf,
 };
+
+use serde::{de::DeserializeOwned, Deserialize};
+use zip::{read::ZipFile, ZipArchive};
 
 /// Builds a set of arguments to build a query for a link
 /// Returns a [Vec]<([String],[String])>
@@ -93,19 +96,106 @@ impl<T: Display> Into<Option<Vec<String>>> for QueryType<T> {
     }
 }
 
-struct FileReader {
-    path: PathBuf,
+#[derive(Debug, Default)]
+pub struct FileReader {
+    base_path: PathBuf,
 }
 
 impl FileReader {
-    fn handle_file(&self) -> Result<()> {
-        let file = File::open(&self.path)?;
+    pub fn from(base_path: PathBuf) -> FileReader {
+        Self {
+            base_path,
+        }
+    }
+
+    pub fn handle_dir(&self) -> Result<Vec<ModInfo>> {
+        let info = fs::read_dir(&self.base_path)?
+            .filter_map(|res| res.ok())
+            .map(|entry| entry.path())
+            .filter_map(|path| self.handle_file(Some(path)).ok())
+            .collect::<Vec<ModInfo>>();
+
+        Ok(info)
+    }
+
+    pub fn handle_file(&self, path: Option<PathBuf>) -> Result<ModInfo> {
+
+        let path = match path {
+            Some(path) => path,
+            None => self.base_path.clone(),
+        };
+
+        let file = File::open(path)?;
+
         let reader = BufReader::new(file);
 
-        
+        let mut zip = ZipArchive::new(reader)?;
 
-        
+        let jar_reader = JarFileReader::find_file(&mut zip, "mcmod.info")?
+            .read_file_content()?
+            .deserialize::<ModInfo>()?;
 
-        Ok(println!("isFile"))
+        Ok(jar_reader)
+    }
+}
+
+/// JarFileReader is intended to read `.jar` files
+struct JarFileReader<'a> {
+    file: ZipFile<'a>,
+    content: String,
+}
+
+impl<'a> JarFileReader<'a> {
+    /// Locates a file from a [ZipArchive] by the files name
+    /// Returns [self] for method chaining.
+    fn find_file(zip: &'a mut ZipArchive<BufReader<File>>, str: &str) -> Result<JarFileReader<'a>> {
+        Ok(Self {
+            file: zip.by_name(str)?,
+            content: String::new(),
+        })
+    }
+
+    /// Reads the files content into a String which is then stored into [content]
+    /// Returns [self] for method chaining.
+    pub fn read_file_content(&mut self) -> Result<&mut Self> {
+        self.file.read_to_string(&mut self.content)?;
+        Ok(self)
+    }
+
+    /// Deserializes the returned content for Json files
+    pub fn deserialize<T: DeserializeOwned>(&self) -> Result<T> {
+        serde_json::from_str(&self.content)
+            .map_err(|e| std::io::Error::new(ErrorKind::InvalidData, e))
+    }
+}
+
+#[derive(Deserialize, Debug)]
+struct McModInfo {
+    modid: String,
+    name: String,
+    version: String,
+}
+
+#[derive(Deserialize, Debug)]
+pub struct ModInfo {
+    info: McModInfo,
+}
+
+#[cfg(test)]
+mod lib_tests {
+    use crate::FileReader;
+
+    #[test]
+    fn test_file_handle() {
+        let reader = FileReader::from("./local/nucleus.jar".into());
+        let info = reader.handle_file(None).unwrap();
+        println!("{:?}", info)
+    }
+
+    #[test]
+    fn test_dir_handle() {
+        let reader = FileReader::from("./local/".into());
+        let info = reader.handle_dir().unwrap();
+        println!("{:?}", info)
     }
 }
