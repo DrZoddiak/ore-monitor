@@ -1,11 +1,9 @@
 use std::{
-    fmt::Display,
-    fs::{self, File},
-    io::{BufReader, ErrorKind, Read, Result},
-    path::PathBuf,
+    fmt::Display, fs::{self, File}, io::{BufReader, ErrorKind, Read, Result}, ops::Deref, path::{Path, PathBuf}
 };
 
 use serde::{de::DeserializeOwned, Deserialize};
+use versions::Versioning;
 use zip::{read::ZipFile, ZipArchive};
 
 /// Builds a set of arguments to build a query for a link
@@ -56,6 +54,14 @@ macro_rules! query {
     }
 }
 
+#[macro_export]
+macro_rules! plugin_response {
+    ($plugin_id:expr,$ore_client:expr) => {{
+        let link = format!("/projects/{}", $plugin_id);
+        $ore_client.get(link, None).await?
+    }};
+}
+
 /// Query represents a list of arguments found in a URL as Key/Values
 pub struct Query {
     query: Vec<(String, String)>,
@@ -96,33 +102,31 @@ impl<T: Display> Into<Option<Vec<String>>> for QueryType<T> {
     }
 }
 
+/// Represents te 
 #[derive(Debug, Default)]
 pub struct FileReader {
     base_path: PathBuf,
 }
 
 impl FileReader {
-    pub fn from(base_path: PathBuf) -> FileReader {
-        Self {
-            base_path,
-        }
+    pub fn from(base_path: &Path) -> FileReader {
+        Self { base_path : base_path.to_path_buf() }
     }
 
     pub fn handle_dir(&self) -> Result<Vec<ModInfo>> {
         let info = fs::read_dir(&self.base_path)?
             .filter_map(|res| res.ok())
             .map(|entry| entry.path())
-            .filter_map(|path| self.handle_file(Some(path)).ok())
+            .filter_map(|path| self.handle_file(Some(&path)).ok())
             .collect::<Vec<ModInfo>>();
 
         Ok(info)
     }
 
-    pub fn handle_file(&self, path: Option<PathBuf>) -> Result<ModInfo> {
-
+    pub fn handle_file(&self, path: Option<&Path>) -> Result<ModInfo> {
         let path = match path {
             Some(path) => path,
-            None => self.base_path.clone(),
+            None => self.base_path.deref(),
         };
 
         let file = File::open(path)?;
@@ -169,11 +173,81 @@ impl<'a> JarFileReader<'a> {
     }
 }
 
+
 #[derive(Deserialize, Debug)]
 struct McModInfo {
     modid: String,
     name: String,
     version: String,
+}
+
+impl McModInfo {
+
+    pub fn check_version(&self, version : McModInfo) -> VersionStatus {
+        let ore_ver = Versioning::new(&version.version).unwrap();
+        let source_ver = Versioning::new(&self.version).unwrap();
+        
+        VersionStatus::check_version(ore_ver, source_ver)
+    }
+}
+
+#[derive(PartialEq, Debug)]
+enum VersionStatus {
+    OutOfDate,
+    UpToDate,
+    Overdated,
+}
+
+impl VersionStatus {
+    pub fn check_version(v1 : Versioning, v2 : Versioning) -> VersionStatus {
+        if v1 == v2 {
+            VersionStatus::UpToDate
+        } else if v1 > v2 {
+            VersionStatus::OutOfDate
+        } else {
+            VersionStatus::Overdated
+        }
+    }
+}
+
+#[cfg(test)]
+mod mc_mod_info_tests {
+    use crate::{McModInfo, VersionStatus};
+
+    macro_rules! build_version {
+        ($src:expr, $out:expr) => {
+        {            
+            let v1 = McModInfo { 
+                modid : "plugin".to_string(),
+                name : "Plugin".to_string(),
+                version : $src.to_string()
+            };
+            let v2 = McModInfo { 
+                modid : "plugin".to_string(),
+                name : "Plugin".to_string(),
+                version : $out.to_string()
+            };
+
+            v1.check_version(v2)
+        }
+        };
+    }
+
+    #[test]
+    fn matching_versions() {
+        assert_eq!(build_version!("1.0","1.0"), VersionStatus::UpToDate);
+    }
+
+    #[test]
+    fn source_out_of_date() {
+        assert_eq!(build_version!("1.0","2.0"), VersionStatus::OutOfDate)
+    }
+
+    #[test]
+    fn source_overdated() {
+        assert_eq!(build_version!("2.0","1.0"), VersionStatus::Overdated)
+    }
+
 }
 
 #[derive(Deserialize, Debug)]
@@ -183,19 +257,22 @@ pub struct ModInfo {
 
 #[cfg(test)]
 mod lib_tests {
+    use std::path::Path;
+
     use crate::FileReader;
 
     #[test]
     fn test_file_handle() {
-        let reader = FileReader::from("./local/nucleus.jar".into());
+        let reader = FileReader::from(Path::new("./local/nucleus.jar"));
         let info = reader.handle_file(None).unwrap();
         println!("{:?}", info)
     }
 
     #[test]
     fn test_dir_handle() {
-        let reader = FileReader::from("./local/".into());
+        let reader = FileReader::from(Path::new("./local/"));
         let info = reader.handle_dir().unwrap();
         println!("{:?}", info)
     }
+
 }

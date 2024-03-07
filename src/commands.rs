@@ -6,10 +6,11 @@ use crate::sponge_schemas::{
 use anyhow::{Ok, Result};
 use async_trait::async_trait;
 use clap::{Parser, Subcommand};
-use common::{query, FileReader, Query};
+use common::{plugin_response, query, FileReader, Query};
 use reqwest::{Response, StatusCode};
 use serde::de::DeserializeOwned;
 
+use std::ops::Deref;
 use std::{fmt::Display, io::Cursor, path::PathBuf};
 
 /// Represents a regular Command
@@ -107,13 +108,6 @@ pub struct PluginCommand {
     /// A Subcommand for displaying versions of the plugin
     #[command(subcommand)]
     versions: Option<PluginSubCommand>,
-}
-
-macro_rules! plugin_response {
-    ($plugin_id:expr,$ore_client:expr) => {{
-        let link = format!("/projects/{}", $plugin_id);
-        $ore_client.get(link, None).await?
-    }};
 }
 
 #[async_trait]
@@ -276,7 +270,7 @@ pub struct VersionCheckCommand {
 impl VersionCheckCommand {
     fn handle_path(&self) -> Result<()> {
 
-        let reader = FileReader::from(self.file.clone());
+        let reader = FileReader::from(self.file.deref());
 
         if self.file.is_dir() {
             println!("{:?}",reader.handle_dir()?);
@@ -287,6 +281,7 @@ impl VersionCheckCommand {
         };
         Ok(())
     }
+
 }
 
 #[async_trait]
