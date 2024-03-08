@@ -5,8 +5,8 @@ mod ore;
 mod sponge_schemas;
 
 use clap::Parser;
-use commands::{Cli, OreCommand};
-use ore::OreAuth;
+use commands::core_command::{Cli, OreCommand};
+use ore::ore_auth::OreAuth;
 
 /// Main method to dispatch commands
 async fn handle_cli(cli: Cli) -> Result<()> {

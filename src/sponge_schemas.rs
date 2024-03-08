@@ -209,6 +209,7 @@ pub struct ProjectSettings {
     license: ProjectLicense,
     forum_sync: bool,
 }
+
 #[derive(Serialize, Deserialize, Debug)]
 pub struct KeyToCreate {
     name: String,
@@ -230,11 +231,13 @@ impl Display for PaginatedProjectResult {
             .collect::<std::fmt::Result>()
     }
 }
+
 #[derive(Serialize, Deserialize, Debug)]
 pub struct ProjectStatsDay {
     downloads: i64,
     view: i64,
 }
+
 #[derive(Serialize, Deserialize, Debug)]
 pub struct PaginatedCompactProjectResult {
     pagination: Pagination,
@@ -330,6 +333,7 @@ pub struct ProjectNamespace {
     pub owner: String,
     pub slug: String,
 }
+
 #[derive(Serialize, Deserialize, Debug)]
 pub struct ReturnedApiSession {
     pub session: String,
@@ -482,4 +486,3 @@ impl Display for VersionStatsAll {
         write!(f, "{}", self.downloads)
     }
 }
-

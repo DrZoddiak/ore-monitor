@@ -1,3 +1,4 @@
+#![doc(html_playground_url = "https://play.rust-lang.org/")]
 pub mod query {
     use std::fmt::Display;
 
@@ -6,47 +7,54 @@ pub mod query {
     ///
     /// Takes a [str] and [QueryType]
     /// ```
-    /// use oremonlib::query;
-    ///
-    /// let query = query! {
-    ///     "q" : QueryType::Value(Some("value"))
-    /// }.to_vec();
+    /// # use oremon_lib::query::{Query, QueryType};
+    /// # use oremon_lib::{plugin_response, query_builder};
+    /// #
+    /// let query = query_builder!("q" : QueryType::Value(Some("value"))).to_vec();
     /// assert_eq!(query, vec![("q".to_string(),"value".to_string())]);
     /// ```
     /// ```
-    /// use oremonlib::query;
-    ///
-    /// let query_vec = query! {
+    /// # use oremon_lib::query::{Query, QueryType};
+    /// # use oremon_lib::{plugin_response, query_builder};
+    /// #
+    /// let query_vec = query_builder!(
     ///     "list" : QueryType::Vec(Some(vec!["one","two","three"]))
-    /// }.to_vec();
+    /// ).to_vec();
     ///
-    /// let result : Vec<(String,String)> = vec![("list","one"),("list","two"),("list","three")].iter().map(|f| (f.0.to_string(),f.1.to_string())).collect();
+    /// let result : Vec<(String,String)> = vec![
+    ///         ("list","one"),
+    ///         ("list","two"),
+    ///         ("list","three")
+    ///     ]
+    ///     .iter()
+    ///     .map(|f| (f.0.to_string(),f.1.to_string()))
+    ///     .collect();
     /// assert_eq!(query_vec, result);
     /// ```
     #[macro_export]
-    macro_rules! query {
-    ($($lit:literal : $val:expr),+ $(,)?) => {
-        {
-            use std::collections::HashMap;
-            use crate::commands::query::Query;
+    macro_rules! query_builder {
+        ($($lit:literal : $val:expr),+ $(,)?) => {
+            {
+                use std::collections::HashMap;
+                use oremon_lib::query::{Query, QueryType};
 
-            let mut map: HashMap<String, Vec<String>> = Default::default();
+                let mut map: HashMap<String, Vec<String>> = Default::default();
 
-            $(
-                if let Some(args) = $val.into() {
-                    map.insert($lit.to_string(), args)
-                } else {
-                    None
-                };
-            )+
+                $(
+                    if let Some(args) = $val.into() {
+                        map.insert($lit.to_string(), args)
+                    } else {
+                        None
+                    };
+                )+
 
-            let query = map.iter().map( |k| {
-                k.1.iter().map(|v| (k.0.to_string(), v.to_string()))
-            }).flatten().collect::<Vec<(String,String)>>();
-            Query::new(query)
+                let query = map.iter().map( |k| {
+                    k.1.iter().map(|v| (k.0.to_string(), v.to_string()))
+                }).flatten().collect::<Vec<(String,String)>>();
+                Query::new(query)
+            }
         }
     }
-}
 
     #[macro_export]
     macro_rules! plugin_response {
