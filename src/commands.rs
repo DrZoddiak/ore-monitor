@@ -6,7 +6,9 @@ use crate::sponge_schemas::{
 use anyhow::{Ok, Result};
 use async_trait::async_trait;
 use clap::{Parser, Subcommand};
-use common::{plugin_response, query, FileReader, Query};
+use oremon_lib::query::{Query, QueryType};
+use oremon_lib::{plugin_response, query};
+use oremon_lib::file_reader::FileReader;
 use reqwest::{Response, StatusCode};
 use serde::de::DeserializeOwned;
 
@@ -269,19 +271,17 @@ pub struct VersionCheckCommand {
 
 impl VersionCheckCommand {
     fn handle_path(&self) -> Result<()> {
-
         let reader = FileReader::from(self.file.deref());
 
         if self.file.is_dir() {
-            println!("{:?}",reader.handle_dir()?);
+            println!("{:?}", reader.handle_dir()?);
         } else if self.file.is_file() {
-            println!("{:?}",reader.handle_file(None)?);
+            println!("{:?}", reader.handle_file(None)?);
         } else {
             println!("Nothing to see here!");
         };
         Ok(())
     }
-
 }
 
 #[async_trait]

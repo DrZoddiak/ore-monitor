@@ -482,3 +482,4 @@ impl Display for VersionStatsAll {
         write!(f, "{}", self.downloads)
     }
 }
+
