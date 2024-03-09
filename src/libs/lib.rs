@@ -1,4 +1,3 @@
-#![doc(html_playground_url = "https://play.rust-lang.org/")]
 pub mod query {
     use std::fmt::Display;
 
@@ -116,7 +115,7 @@ pub mod file_reader {
     use serde::de::DeserializeOwned;
     use zip::{read::ZipFile, ZipArchive};
 
-    use crate::mc_mod_info::ModInfo;
+    use crate::mc_mod_info::{McModInfo, ModInfo};
 
     /// A reader that takes a [PathBuf] to read a file or group of files
     #[derive(Debug, Default)]
@@ -133,12 +132,32 @@ pub mod file_reader {
 
         /// Handles a directory and reads the files inside of it
         /// Returns a Vector of [ModInfo] of each valid file.
-        pub fn handle_dir(&self) -> Result<Vec<ModInfo>> {
+        /// ```
+        /// # use oremon_lib::file_reader::FileReader;
+        /// # use std::path::Path;
+        /// # use oremon_lib::mc_mod_info::McModInfo;
+        /// let reader = FileReader::from(Path::new("./local/test/"));
+        /// let file = reader.handle_dir().unwrap();
+        /// let mod_one = McModInfo {
+        ///     modid : "nucleus".to_string(),
+        ///     name : "Nucleus".to_string(),
+        ///     version : "2.1.4".to_string(),
+        /// };
+        /// let mod_two = McModInfo {
+        ///     modid : "huskycrates".to_string(),
+        ///     name : "HuskyCrates".to_string(),
+        ///     version : "2.0.0PRE9H2".to_string(),
+        /// };
+        /// let mods = vec![mod_one, mod_two];
+        /// assert_eq!(file,mods);
+        /// ```
+        pub fn handle_dir(&self) -> Result<Vec<McModInfo>> {
             let info = fs::read_dir(&self.base_path)?
                 .filter_map(|res| res.ok())
                 .map(|entry| entry.path())
                 .filter_map(|path| self.handle_file(Some(&path)).ok())
-                .collect::<Vec<ModInfo>>();
+                .map(|f| f.info)
+                .collect::<Vec<McModInfo>>();
 
             Ok(info)
         }
@@ -148,6 +167,19 @@ pub mod file_reader {
 
         /// Handles a single file. It reads from the [PathBuf] provided.
         /// If a path is provided it will read from it instead.
+        /// ```
+        /// # use oremon_lib::file_reader::FileReader;
+        /// # use std::path::Path;
+        /// # use oremon_lib::mc_mod_info::McModInfo;
+        /// let reader = FileReader::from(Path::new("./local/test/nucleus.jar"));
+        /// let file = reader.handle_file(None).unwrap();
+        /// let mod_info = McModInfo {
+        ///     modid : "nucleus".to_string(),
+        ///     name : "Nucleus".to_string(),
+        ///     version : "2.1.4".to_string(),
+        /// };
+        /// assert_eq!(file.info,mod_info);
+        /// ```
         pub fn handle_file(&self, path: Option<&Path>) -> Result<ModInfo> {
             let path = path.unwrap_or(self.base_path.deref());
 
@@ -197,33 +229,14 @@ pub mod file_reader {
                 .map_err(|e| std::io::Error::new(ErrorKind::InvalidData, e))
         }
     }
-
-    #[cfg(test)]
-    mod file_reader_tests {
-        use std::path::Path;
-
-        use crate::file_reader::FileReader;
-
-        #[test]
-        fn test_file_handle() {
-            let reader = FileReader::from(Path::new("./local/nucleus.jar"));
-            let info = reader.handle_file(None).unwrap();
-            println!("{:?}", info)
-        }
-
-        #[test]
-        fn test_dir_handle() {
-            let reader = FileReader::from(Path::new("./local/"));
-            let info = reader.handle_dir().unwrap();
-            println!("{:?}", info)
-        }
-    }
 }
 
+/// Module handles version checking implementation
 pub mod version_status {
     use std::fmt::Display;
     use versions::Versioning;
 
+    /// Represents the status a version can have compared to Ore
     #[derive(PartialEq, Debug)]
     pub enum VersionStatus {
         /// Version is outdated
@@ -247,76 +260,36 @@ pub mod version_status {
     }
 
     impl VersionStatus {
-        pub fn check_version(remote: Versioning, source: Versioning) -> VersionStatus {
-            if source == remote {
+        /// Compares two [Versioning]s
+        /// The first parameter should be the remote version.
+        /// The second parameter should be the local version.
+        ///
+        /// ```
+        /// # use oremon_lib::version_status::VersionStatus;
+        /// assert_eq!(VersionStatus::check_version("2.0","2.0"), VersionStatus::UpToDate);
+        ///
+        /// assert_eq!(VersionStatus::check_version("1.0","2.0"), VersionStatus::OutOfDate);
+        ///
+        /// assert_eq!(VersionStatus::check_version("2.0","1.0"), VersionStatus::Overdated);
+        ///
+        /// assert_ne!(VersionStatus::check_version("1.0","1.0"), VersionStatus::OutOfDate);
+        /// ```
+        pub fn check_version(local: &'_ str, remote: &'_ str) -> VersionStatus {
+            let local = Versioning::new(&local).unwrap();
+            let remote = Versioning::new(&remote).unwrap();
+            if local == remote {
                 VersionStatus::UpToDate
-            } else if source < remote {
+            } else if local < remote {
                 VersionStatus::OutOfDate
             } else {
                 VersionStatus::Overdated
             }
         }
     }
-
-    #[cfg(test)]
-    mod version_status_tests {
-        use crate::mc_mod_info::McModInfo;
-        use crate::version_status::VersionStatus;
-
-        macro_rules! build_version {
-            ($src:expr, $out:expr) => {{
-                let v1 = McModInfo {
-                    modid: "plugin".to_string(),
-                    name: "Plugin".to_string(),
-                    version: $src.to_string(),
-                };
-                let v2 = McModInfo {
-                    modid: "plugin".to_string(),
-                    name: "Plugin".to_string(),
-                    version: $out.to_string(),
-                };
-
-                v1.check_version(v2)
-            }};
-        }
-
-        #[test]
-        fn matching_versions() {
-            assert_eq!(build_version!("1.0", "1.0"), VersionStatus::UpToDate);
-        }
-
-        #[test]
-        fn source_out_of_date() {
-            assert_eq!(build_version!("1.0", "2.0"), VersionStatus::OutOfDate)
-        }
-
-        #[test]
-        fn source_overdated() {
-            assert_eq!(build_version!("2.0", "1.0"), VersionStatus::Overdated)
-        }
-
-        #[test]
-        fn matching_versions_fail() {
-            assert_ne!(build_version!("1.0", "1.0"), VersionStatus::OutOfDate);
-        }
-
-        #[test]
-        fn source_out_of_date_fail() {
-            assert_ne!(build_version!("1.0", "2.0"), VersionStatus::Overdated)
-        }
-
-        #[test]
-        fn source_overdated_fail() {
-            assert_ne!(build_version!("2.0", "1.0"), VersionStatus::UpToDate)
-        }
-    }
 }
 
 pub mod mc_mod_info {
     use serde::Deserialize;
-    use versions::Versioning;
-
-    use crate::version_status::VersionStatus;
 
     /// The root representation of an mcmod.info
     #[derive(Deserialize, Debug)]
@@ -325,19 +298,10 @@ pub mod mc_mod_info {
     }
 
     /// A partial representation of a mcmod.info file
-    #[derive(Deserialize, Debug)]
+    #[derive(Deserialize, Debug, PartialEq)]
     pub struct McModInfo {
         pub modid: String,
         pub name: String,
         pub version: String,
-    }
-
-    impl McModInfo {
-        pub fn check_version(&self, version: McModInfo) -> VersionStatus {
-            let ore_ver = Versioning::new(&version.version).unwrap();
-            let source_ver = Versioning::new(&self.version).unwrap();
-
-            VersionStatus::check_version(ore_ver, source_ver)
-        }
     }
 }
