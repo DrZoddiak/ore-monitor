@@ -1,18 +1,20 @@
 pub mod core_command {
-    use std::fmt::Display;
-
     use anyhow::Result;
     use async_trait::async_trait;
     use clap::Parser;
+    use oremon_lib::gen_matches;
     use oremon_lib::query::Query;
     use reqwest::Response;
     use serde::de::DeserializeOwned;
+    use std::fmt::Display;
+    use strum::IntoEnumIterator;
+    use strum_macros::EnumIter;
 
     use crate::ore::ore_client::OreClient;
 
     use super::{
         install_command::InstallCommand, plugin_command::PluginCommand,
-        search_command::SearchCommand, version_check::VersionCheckCommand,
+        search_command::SearchCommand, version_check_command::VersionCheckCommand,
     };
 
     /// Represents a regular Command
@@ -36,7 +38,7 @@ pub mod core_command {
     }
 
     /// Represents the "root" commands
-    #[derive(Parser)]
+    #[derive(Parser, EnumIter)]
     #[command(version)]
     pub enum Cli {
         /// Allows for searching for a list of plugins based off of the query
@@ -48,12 +50,19 @@ pub mod core_command {
         /// Checks the version(s) and compares them against Ore
         Check(VersionCheckCommand),
     }
+
+    impl Cli {
+        pub fn cmd_value(&self) -> &dyn OreCommand {
+            gen_matches!(self, Cli::Search, Cli::Plugin, Cli::Install, Cli::Check)
+        }
+    }
 }
 
 mod search_command {
     use anyhow::Result;
 
     use crate::{
+        commands::core_command::OreCommand,
         ore::ore_client::OreClient,
         sponge_schemas::{Category, PaginatedProjectResult, ProjectSortingStrategy},
     };
@@ -61,10 +70,8 @@ mod search_command {
     use clap::Parser;
     use oremon_lib::{query::Query, query_builder};
 
-    use crate::commands::core_command::OreCommand;
-
     /// Enables the searching of plugins based on a query if provided
-    #[derive(Parser)]
+    #[derive(Parser, Default)]
     pub struct SearchCommand {
         /// A search query
         search: Option<String>,
@@ -130,7 +137,7 @@ mod plugin_command {
     use crate::commands::core_command::OreCommand;
 
     /// Retreives project information about a plugin
-    #[derive(Parser)]
+    #[derive(Parser, Default)]
     pub struct PluginCommand {
         /// The plugin ID to search by
         plugin_id: String,
@@ -227,7 +234,7 @@ mod install_command {
     use crate::commands::core_command::OreCommand;
 
     /// A command to Install plugins
-    #[derive(Parser)]
+    #[derive(Parser, Default)]
     pub struct InstallCommand {
         /// Directory to install into
         #[arg(short, long)]
@@ -304,7 +311,7 @@ mod install_command {
     }
 }
 
-mod version_check {
+mod version_check_command {
     use anyhow::Result;
     use async_trait::async_trait;
     use clap::Parser;
@@ -315,7 +322,7 @@ mod version_check {
 
     use crate::commands::core_command::OreCommand;
 
-    #[derive(Parser)]
+    #[derive(Parser, Default)]
     pub struct VersionCheckCommand {
         /// path to file(s) to check otherwise checks where it was ran from
         #[clap(default_value = ".")]

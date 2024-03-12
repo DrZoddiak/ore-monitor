@@ -55,6 +55,65 @@ pub mod query {
         }
     }
 
+    /// Meant for Single value tuple Enums that share a common trait
+    /// self is expected to be an enum
+    /// path should be each of the Variants of the enum
+    ///
+    /// ```
+    /// # use oremon_lib::gen_matches;
+    /// trait CommonTrait {}
+    ///
+    /// struct A {}
+    /// impl CommonTrait for A {}
+    ///
+    /// struct B {}
+    /// impl CommonTrait for B {}
+    ///
+    /// enum Enum {
+    ///     Foo(A),
+    ///     Bar(B),
+    /// }
+    ///
+    /// impl Enum {
+    ///     fn trait_value(&self) -> &dyn CommonTrait {
+    ///         gen_matches!(self, Enum::Foo, Enum::Bar)
+    ///     }
+    /// }
+    /// ```
+    /// The macro expands into
+    /// ```
+    /// # use oremon_lib::gen_matches;
+    /// # trait CommonTrait {}
+    /// #
+    /// # struct A {}
+    /// # impl CommonTrait for A {}
+    /// #
+    /// # struct B {}
+    /// # impl CommonTrait for B {}
+    /// #
+    /// # enum Enum {
+    /// #     Foo(A),
+    /// #     Bar(B),
+    /// # }
+    /// impl Enum {
+    ///     fn trait_value(&self) -> &dyn CommonTrait {
+    ///         match self {
+    ///             Enum::Foo(value) => value,
+    ///             Enum::Bar(value) => value,
+    ///         }
+    ///     }
+    /// }
+    ///
+    /// ```
+    #[macro_export]
+    macro_rules! gen_matches {
+        ($self:ident, $($path:path),*) => {
+            match $self {
+                $($path(value) => value,)+
+            }
+        };
+    }
+
     #[macro_export]
     macro_rules! plugin_response {
         ($plugin_id:expr,$ore_client:expr) => {{
@@ -65,7 +124,7 @@ pub mod query {
 
     /// Query represents a list of arguments found in a URL as Key/Values
     pub struct Query {
-        query: Vec<(String, String)>,
+        pub query: Vec<(String, String)>,
     }
 
     impl Query {

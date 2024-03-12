@@ -1,21 +1,14 @@
-[package]
-name = "ore_monitor"
+[workspace]
+resolver = "2"
+members = [
+    "crates/ore_monitor"
+]
+
+[workspace.package]
 version = "0.1.0"
 edition = "2021"
+authors = ["Zodd"]
 
-[lib]
-name = "oremon_lib"
-path = "src/libs/lib.rs"
-
-[dependencies]
-clap = { version = "4", features = ["derive","string"] }
-reqwest = "0.11"
-tokio = { version = "1" ,features = ["macros","rt-multi-thread"]}
-serde = { version = "1.0", features = ["derive"] }
-serde_json = "1.0"
-chrono = "0.4"
+[workspace.dependencies]
 anyhow = "1.0"
-human_bytes="0.4"
-async-trait = "0.1.77"
-zip = "0.6.6"
-versions = "6.1.0"
+
