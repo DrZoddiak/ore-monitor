@@ -7,8 +7,6 @@ pub mod core_command {
     use reqwest::Response;
     use serde::de::DeserializeOwned;
     use std::fmt::Display;
-    use strum::IntoEnumIterator;
-    use strum_macros::EnumIter;
 
     use crate::ore::ore_client::OreClient;
 
@@ -38,7 +36,7 @@ pub mod core_command {
     }
 
     /// Represents the "root" commands
-    #[derive(Parser, EnumIter)]
+    #[derive(Parser)]
     #[command(version)]
     pub enum Cli {
         /// Allows for searching for a list of plugins based off of the query
