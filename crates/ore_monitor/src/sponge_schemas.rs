@@ -6,7 +6,7 @@ use std::fmt::Display;
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct Project {
-    created_at: String,
+    created_at: DateTime<Utc>,
     plugin_id: String,
     name: String,
     pub namespace: ProjectNamespace,
@@ -14,7 +14,7 @@ pub struct Project {
     stats: ProjectStatsAll,
     category: Category,
     description: String,
-    last_updated: String,
+    last_updated: DateTime<Utc>,
     visibility: String,
     user_actions: UserActions,
     settings: ProjectSettings,
@@ -26,11 +26,7 @@ impl Display for Project {
         writeln!(f, "Plugin ID : {}", self.namespace.slug)?;
         writeln!(f, "Author : {}", self.namespace.owner)?;
         writeln!(f, "Description : {}", self.description)?;
-        writeln!(
-            f,
-            "Last Updated : {}",
-            self.last_updated.parse::<DateTime<Utc>>().unwrap()
-        )?;
+        writeln!(f, "Last Updated : {}", self.last_updated)?;
         writeln!(
             f,
             "Promoted Version : {}",
@@ -177,7 +173,7 @@ pub struct ApiSessionProperties {
 
 #[derive(Serialize, Deserialize)]
 pub struct User {
-    created_at: String,
+    created_at: DateTime<Utc>,,
     name: String,
     tagline: Option<String>,
     join_date: Option<String>,
@@ -397,7 +393,7 @@ impl Display for ProjectSortingStrategy {
 
 #[derive(Serialize, Deserialize)]
 pub struct Version {
-    created_at: String,
+    created_at: DateTime<Utc>,
     name: String,
     dependencies: Vec<VersionDependency>,
     visibility: String,
@@ -413,11 +409,7 @@ impl Display for Version {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         writeln!(f, "{}", format!("{:=^45}", format!("[{}]", self.name)))?;
         writeln!(f, "Author : {}", self.author.as_deref().unwrap_or_default())?;
-        writeln!(
-            f,
-            "Created at : {}",
-            self.created_at.parse::<DateTime<Utc>>().unwrap()
-        )?;
+        writeln!(f, "Created at : {}", self.created_at)?;
         writeln!(f, "Review State : {}", self.review_state)?;
         writeln!(
             f,

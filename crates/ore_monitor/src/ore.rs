@@ -22,7 +22,7 @@ pub mod ore_client {
             }
         }
 
-        fn log_errors(code: StatusCode) {
+        fn log_errors(&self, code: StatusCode) {
             let msg = match code {
                 // No Content is actually a "successful" error
                 StatusCode::NO_CONTENT => None, //Some("Session Invalidated"),
@@ -61,7 +61,7 @@ pub mod ore_client {
                 .client
                 .delete(format!("{}/sessions/current", self.base_url));
             let res = self.apply_headers(builder).send().await?;
-            Self::log_errors(res.status());
+            self.log_errors(res.status());
             Ok(())
         }
 
@@ -86,7 +86,7 @@ pub mod ore_client {
         ) -> Result<Response> {
             let url = self.base_url.to_string() + &url;
             let res = self.common_get(url, query).await?;
-            Self::log_errors(res.status());
+            self.log_errors(res.status());
             self.invalidate().await?;
             Ok(res)
         }
@@ -115,13 +115,17 @@ pub mod ore_client {
 mod ore_session {
     use crate::sponge_schemas::ReturnedApiSession;
 
+    /// Represents a session for Ore
     #[derive(Default, Debug)]
     pub(crate) struct OreSession {
+        /// The id for the session to pass for auth
         pub session_id: String,
+        /// When the session expires
         pub expires: String,
     }
 
     impl OreSession {
+        /// Updates the struct with the new updated values.
         pub fn update(&mut self, response: ReturnedApiSession) {
             self.session_id = response.session;
             self.expires = response.expires;
