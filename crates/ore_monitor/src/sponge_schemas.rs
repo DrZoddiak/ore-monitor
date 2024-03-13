@@ -173,7 +173,7 @@ pub struct ApiSessionProperties {
 
 #[derive(Serialize, Deserialize)]
 pub struct User {
-    created_at: DateTime<Utc>,,
+    created_at: DateTime<Utc>,
     name: String,
     tagline: Option<String>,
     join_date: Option<String>,
