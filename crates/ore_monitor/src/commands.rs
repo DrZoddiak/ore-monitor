@@ -375,7 +375,7 @@ mod version_check_command {
             let mut version_status_list: Vec<VersionStatus> = vec![];
 
             for (local, remote) in checklist {
-                let project_ver = { remote.version_from_tag(local.sponge_tag_version()) };
+                let project_ver = remote.version_from_tag(local.sponge_tag_version()?);
 
                 let local_ver = local.version.as_str();
                 let status = Versions::new(local_ver, project_ver).status();

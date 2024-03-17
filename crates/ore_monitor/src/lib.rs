@@ -60,7 +60,7 @@ pub mod query {
     /// path should be each of the Variants of the enum
     ///
     /// ```
-    /// # use oremon_lib::gen_matches;
+    /// use oremon_lib::gen_matches;
     /// trait CommonTrait {}
     ///
     /// struct A {}
@@ -114,7 +114,6 @@ pub mod query {
         };
     }
 
-    // Remove in favor of
     #[macro_export]
     macro_rules! plugin_response {
         ($plugin_id:expr,$ore_client:expr) => {{
@@ -214,7 +213,10 @@ pub mod file_reader {
         ///         "spongeapi@7.1.0-SNAPSHOT".to_string(),
         ///         "huskyui@0.6.0PRE3".to_string()
         ///     ],
-        ///     required_mods : vec!["spongeapi@7.1.0-SNAPSHOT".to_string(),"huskyui@0.6.0PRE3".to_string()]
+        ///     required_mods : vec![
+        ///         "spongeapi@7.1.0-SNAPSHOT".to_string(),
+        ///         "huskyui@0.6.0PRE3".to_string()
+        ///     ]
         /// };
         /// let mods = vec![mod_one, mod_two];
         /// assert_eq!(file,mods);
@@ -351,8 +353,6 @@ pub mod version_status {
         /// assert_eq!(Versions::new("1.0","2.0").status(), VersionStatus::OutOfDate);
         ///
         /// assert_eq!(Versions::new("2.0","1.0").status(), VersionStatus::Overdated);
-        ///
-        /// assert_eq!(Versions::new("2.0.0PRE9H2","2.0.0RC3").status(),VersionStatus::Overdated);
         /// ```
         pub fn status(&self) -> VersionStatus {
             match dbg!(self).local.cmp(&self.remote) {
@@ -384,18 +384,41 @@ pub mod mc_mod_info {
         pub required_mods: Vec<String>,
     }
 
+    use anyhow::{Error, Result};
+
     impl McModInfo {
-        // ex. spongeapi@7.1.0-SNAPSHOT -> 7
-        pub fn sponge_tag_version(&self) -> u32 {
-            self.dependencies
-                .iter()
-                .find(|str| str.starts_with("spongeapi"))
-                .and_then(|str| str.split_once("@"))
-                .and_then(|(pre, _)| Some(pre))
-                .and_then(|str| str.split_once("."))
-                .and_then(|(major, _)| Some(major))
-                .and_then(|num| Some(num.parse().unwrap_or_default()))
-                .unwrap_or_default()
+        /// Attempts to get the tag version from the mcmod file
+        /// First reading from the dependencies list, if failing that the required_mods list.
+        /// ```
+        /// use oremon_lib::mc_mod_info::McModInfo;
+        ///
+        /// let mod_info = McModInfo {
+        ///     modid : "nucleus".to_string(),
+        ///     name : "Nucleus".to_string(),
+        ///     version : "2.1.4".to_string(),
+        ///     dependencies : vec!["spongeapi@7.3".to_string()],
+        ///     required_mods : vec!["spongeapi@7.3".to_string()]
+        /// };
+        ///
+        /// let tag = mod_info.sponge_tag_version().unwrap();
+        /// assert_eq!(tag, 7);
+        /// ```
+        pub fn sponge_tag_version(&self) -> Result<u32> {
+            self.find_major_version("spongeapi", &self.dependencies)
+                .or(self.find_major_version("spongeapi", &self.required_mods))
+                .ok_or(Error::msg("Unable to find Sponge API tag"))
+        }
+
+        fn find_major_version(&self, id: &'_ str, list: &Vec<String>) -> Option<u32> {
+            list.iter()
+                .find(|str| str.starts_with(id))
+                .and_then(|str| str.split_once('@'))
+                .and_then(|(_, ver)| ver.split_once('.'))
+                .and_then(|(major, _)| match major.parse() {
+                    Ok(num) => Some(num),
+                    Err(_) => None,
+                })
         }
     }
+
 }
