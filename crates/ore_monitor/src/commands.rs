@@ -20,11 +20,18 @@ pub mod core_command {
     pub trait OreCommand {
         async fn handle(&self, ore_client: OreClient, link_query: Option<Query>) -> Result<()>;
 
-        async fn serialize<T: DeserializeOwned>(&self, txt: Response) -> Result<T>
+        async fn serialize<T: DeserializeOwned>(&self, res: Response) -> Result<T>
         where
             Self: Sized,
         {
-            serde_json::from_str(&txt.text().await?).map_err(|e| anyhow::Error::from(e))
+            serde_json::from_str(&res.text().await?).map_err(|e| anyhow::Error::from(e))
+        }
+
+        async fn serialize_str<T: DeserializeOwned>(&self, txt: &str) -> Result<T>
+        where
+            Self: Sized,
+        {
+            serde_json::from_str(txt).map_err(|e| anyhow::Error::from(e))
         }
 
         fn print_res<T: Display>(&self, res: T) -> Result<()>
@@ -155,7 +162,7 @@ mod plugin_command {
                 return Ok(ver.handle(ore_client, Some(query)).await?);
             }
 
-            let res: Response = plugin_response!(query.get_query("plugin_id"), &ore_client);
+            let res: Response = plugin_response!(query.get_query("plugin_id"), &ore_client).await?;
 
             let res: Project = self.serialize(res).await?;
 
@@ -257,7 +264,7 @@ mod install_command {
         async fn handle(&self, ore_client: OreClient, _link_query: Option<Query>) -> Result<()> {
             // This whole command is basically a workaround for the API not having a download link available
             // This response allows me to generate the owner:slug information for a valid link to download
-            let res = plugin_response!(self.plugin_id, &ore_client);
+            let res = plugin_response!(self.plugin_id, &ore_client).await?;
 
             let proj: Project = self.serialize(res).await?;
 
@@ -313,12 +320,18 @@ mod version_check_command {
     use anyhow::Result;
     use async_trait::async_trait;
     use clap::Parser;
-    use oremon_lib::{file_reader::FileReader, query::Query};
+    use oremon_lib::{
+        file_reader::FileReader,
+        mc_mod_info::McModInfo,
+        query::Query,
+        version_status::{VersionStatus, Versions},
+    };
     use std::{ops::Deref, path::PathBuf};
+    use tokio_stream::StreamExt;
 
-    use crate::ore::ore_client::OreClient;
+    use crate::{ore::ore_client::OreClient, sponge_schemas::Project};
 
-    use crate::commands::core_command::OreCommand;
+    use super::core_command::OreCommand;
 
     #[derive(Parser, Default)]
     pub struct VersionCheckCommand {
@@ -327,27 +340,49 @@ mod version_check_command {
         file: PathBuf,
     }
 
-    impl VersionCheckCommand {
-        fn handle_path(&self) -> Result<()> {
-            let reader = FileReader::from(self.file.deref());
-
-            if self.file.is_dir() {
-                println!("{:?}", reader.handle_dir()?);
-            } else if self.file.is_file() {
-                println!("{:?}", reader.handle_file(None)?);
-            } else {
-                println!("Nothing to see here!");
-            };
-            Ok(())
-        }
-    }
-
     #[async_trait]
     impl OreCommand for VersionCheckCommand {
         async fn handle(&self, ore_client: OreClient, _link_query: Option<Query>) -> Result<()> {
-            self.handle_path()?;
+            let files = {
+                let reader = FileReader::from(self.file.deref());
 
-            Ok(println!("Ok!"))
+                let file = if self.file.is_dir() {
+                    reader.handle_dir()?
+                } else if self.file.is_file() {
+                    vec![reader.handle_file(None)?]
+                } else {
+                    vec![]
+                };
+                file
+            };
+
+            let projects = {
+                let names = files.iter().map(|f| f.modid.deref().to_string()).collect();
+
+                let responses = ore_client.plugin_responses(names).await?;
+                let mut responses = tokio_stream::iter(responses);
+
+                let mut projects: Vec<Project> = vec![];
+                while let Some(v) = responses.next().await {
+                    let info = self.serialize_str(&v).await?;
+                    projects.push(info)
+                }
+                projects
+            };
+
+            let checklist: Vec<(&McModInfo, Project)> = files.iter().zip(projects).collect();
+
+            let mut version_status_list: Vec<VersionStatus> = vec![];
+
+            for (local, remote) in checklist {
+                let project_ver = { remote.version_from_tag(local.sponge_tag_version()) };
+
+                let local_ver = local.version.as_str();
+                let status = Versions::new(local_ver, project_ver).status();
+                version_status_list.push(status)
+            }
+
+            Ok(println!("statuslist {:?}", version_status_list))
         }
     }
 }

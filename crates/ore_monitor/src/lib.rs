@@ -114,11 +114,12 @@ pub mod query {
         };
     }
 
+    // Remove in favor of
     #[macro_export]
     macro_rules! plugin_response {
         ($plugin_id:expr,$ore_client:expr) => {{
             let link = format!("/projects/{}", $plugin_id);
-            $ore_client.get(link, None).await?
+            $ore_client.get(link, None)
         }};
     }
 
@@ -201,11 +202,19 @@ pub mod file_reader {
         ///     modid : "nucleus".to_string(),
         ///     name : "Nucleus".to_string(),
         ///     version : "2.1.4".to_string(),
+        ///     dependencies : vec!["spongeapi@7.3".to_string()],
+        ///     required_mods : vec!["spongeapi@7.3".to_string()]
         /// };
         /// let mod_two = McModInfo {
         ///     modid : "huskycrates".to_string(),
         ///     name : "HuskyCrates".to_string(),
         ///     version : "2.0.0PRE9H2".to_string(),
+        ///     dependencies : vec![
+        ///         "placeholderapi".to_string(),
+        ///         "spongeapi@7.1.0-SNAPSHOT".to_string(),
+        ///         "huskyui@0.6.0PRE3".to_string()
+        ///     ],
+        ///     required_mods : vec!["spongeapi@7.1.0-SNAPSHOT".to_string(),"huskyui@0.6.0PRE3".to_string()]
         /// };
         /// let mods = vec![mod_one, mod_two];
         /// assert_eq!(file,mods);
@@ -215,7 +224,7 @@ pub mod file_reader {
                 .filter_map(|res| res.ok())
                 .map(|entry| entry.path())
                 .filter_map(|path| self.handle_file(Some(&path)).ok())
-                .map(|f| f.info)
+                .map(|f| f)
                 .collect::<Vec<McModInfo>>();
 
             Ok(info)
@@ -236,10 +245,12 @@ pub mod file_reader {
         ///     modid : "nucleus".to_string(),
         ///     name : "Nucleus".to_string(),
         ///     version : "2.1.4".to_string(),
+        ///     dependencies : vec!["spongeapi@7.3".to_string()],
+        ///     required_mods : vec!["spongeapi@7.3".to_string()]
         /// };
-        /// assert_eq!(file.info,mod_info);
+        /// assert_eq!(file,mod_info);
         /// ```
-        pub fn handle_file(&self, path: Option<&Path>) -> Result<ModInfo> {
+        pub fn handle_file(&self, path: Option<&Path>) -> Result<McModInfo> {
             let path = path.unwrap_or(self.base_path.deref());
 
             let file = File::open(path)?;
@@ -252,7 +263,7 @@ pub mod file_reader {
                 .read_file_content()?
                 .deserialize::<ModInfo>()?;
 
-            Ok(jar_reader)
+            Ok(jar_reader.info)
         }
     }
 
@@ -292,7 +303,7 @@ pub mod file_reader {
 
 /// Module handles version checking implementation
 pub mod version_status {
-    use std::fmt::Display;
+    use std::{cmp::Ordering, fmt::Display};
     use versions::Versioning;
 
     /// Represents the status a version can have compared to Ore
@@ -317,31 +328,37 @@ pub mod version_status {
             }
         }
     }
+    #[derive(Debug)]
+    pub struct Versions {
+        local: Versioning,
+        remote: Versioning,
+    }
 
-    impl VersionStatus {
-        /// Compares two [Versioning]s
-        /// The first parameter should be the remote version.
-        /// The second parameter should be the local version.
-        ///
+    impl Versions {
+        pub fn new(local: &'_ str, remote: &'_ str) -> Versions {
+            Self {
+                local: Versioning::new(local).unwrap_or_default(),
+                remote: Versioning::new(remote).unwrap_or_default(),
+            }
+        }
+
+        /// Compares the local and remote versions
         /// ```
-        /// # use oremon_lib::version_status::VersionStatus;
-        /// assert_eq!(VersionStatus::check_version("2.0","2.0"), VersionStatus::UpToDate);
+        /// use oremon_lib::version_status::{ VersionStatus, Versions };
         ///
-        /// assert_eq!(VersionStatus::check_version("1.0","2.0"), VersionStatus::OutOfDate);
+        /// assert_eq!(Versions::new("2.0","2.0").status(), VersionStatus::UpToDate);
         ///
-        /// assert_eq!(VersionStatus::check_version("2.0","1.0"), VersionStatus::Overdated);
+        /// assert_eq!(Versions::new("1.0","2.0").status(), VersionStatus::OutOfDate);
         ///
-        /// assert_ne!(VersionStatus::check_version("1.0","1.0"), VersionStatus::OutOfDate);
+        /// assert_eq!(Versions::new("2.0","1.0").status(), VersionStatus::Overdated);
+        ///
+        /// assert_eq!(Versions::new("2.0.0PRE9H2","2.0.0RC3").status(),VersionStatus::Overdated);
         /// ```
-        pub fn check_version(local: &'_ str, remote: &'_ str) -> VersionStatus {
-            let local = Versioning::new(&local).unwrap();
-            let remote = Versioning::new(&remote).unwrap();
-            if local == remote {
-                VersionStatus::UpToDate
-            } else if local < remote {
-                VersionStatus::OutOfDate
-            } else {
-                VersionStatus::Overdated
+        pub fn status(&self) -> VersionStatus {
+            match dbg!(self).local.cmp(&self.remote) {
+                Ordering::Less => VersionStatus::OutOfDate,
+                Ordering::Equal => VersionStatus::UpToDate,
+                Ordering::Greater => VersionStatus::Overdated,
             }
         }
     }
@@ -358,9 +375,27 @@ pub mod mc_mod_info {
 
     /// A partial representation of a mcmod.info file
     #[derive(Deserialize, Debug, PartialEq)]
+    #[serde(rename_all = "camelCase")]
     pub struct McModInfo {
         pub modid: String,
         pub name: String,
         pub version: String,
+        pub dependencies: Vec<String>,
+        pub required_mods: Vec<String>,
+    }
+
+    impl McModInfo {
+        // ex. spongeapi@7.1.0-SNAPSHOT -> 7
+        pub fn sponge_tag_version(&self) -> u32 {
+            self.dependencies
+                .iter()
+                .find(|str| str.starts_with("spongeapi"))
+                .and_then(|str| str.split_once("@"))
+                .and_then(|(pre, _)| Some(pre))
+                .and_then(|str| str.split_once("."))
+                .and_then(|(major, _)| Some(major))
+                .and_then(|num| Some(num.parse().unwrap_or_default()))
+                .unwrap_or_default()
+        }
     }
 }

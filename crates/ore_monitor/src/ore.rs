@@ -5,6 +5,7 @@ pub mod ore_client {
         header::{self, AUTHORIZATION},
         Client, RequestBuilder, Response, StatusCode,
     };
+    use tokio_stream::StreamExt;
 
     #[derive(Debug)]
     pub struct OreClient {
@@ -79,6 +80,25 @@ pub mod ore_client {
             Ok(res)
         }
 
+        pub async fn plugin_responses(&self, id: Vec<String>) -> Result<Vec<String>> {
+            let link = id
+                .iter()
+                .map(|f| format!("/projects/{}", f))
+                .collect::<Vec<String>>();
+
+            let mut iter = tokio_stream::iter(link);
+
+            let mut res: Vec<String> = vec![];
+
+            while let Some(v) = iter.next().await {
+                let f = self.get(v, None).await?.text().await?;
+
+                res.push(f)
+            }
+
+            Ok(res)
+        }
+
         pub async fn get(
             &self,
             url: String,
@@ -87,7 +107,6 @@ pub mod ore_client {
             let url = self.base_url.to_string() + &url;
             let res = self.common_get(url, query).await?;
             self.log_errors(res.status());
-            self.invalidate().await?;
             Ok(res)
         }
 

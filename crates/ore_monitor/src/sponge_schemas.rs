@@ -2,7 +2,7 @@ use chrono::{DateTime, Utc};
 use clap::ValueEnum;
 use human_bytes::human_bytes;
 use serde::{Deserialize, Serialize};
-use std::fmt::Display;
+use std::{fmt::Display, ops::Deref};
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct Project {
@@ -10,7 +10,7 @@ pub struct Project {
     plugin_id: String,
     name: String,
     pub namespace: ProjectNamespace,
-    promoted_versions: Vec<PromotedVersion>,
+    pub promoted_versions: Vec<PromotedVersion>,
     stats: ProjectStatsAll,
     category: Category,
     description: String,
@@ -19,6 +19,35 @@ pub struct Project {
     user_actions: UserActions,
     settings: ProjectSettings,
     icon_url: String,
+}
+
+impl Project {
+    pub fn version_from_tag(&self, major_version: u32) -> &str {
+        let available_tags: Vec<_> = self
+            .promoted_versions
+            .iter()
+            .map(|f| {
+                let ver = &f.version;
+                let tag = f
+                    .tags
+                    .iter()
+                    .find(|p| p.name.contains("sponge"))
+                    .and_then(|f| Some(f.display_data.as_ref()))
+                    .unwrap_or_default()
+                    .and_then(|f| f.split_once("."))
+                    .and_then(|f| Some(f.0))
+                    .and_then(|f| Some(f.parse::<u32>().unwrap_or_default()))
+                    .unwrap_or_default();
+                (ver, tag)
+            })
+            .collect();
+
+        available_tags
+            .iter()
+            .find(|p| p.1.eq(&major_version))
+            .and_then(|f| Some(f.0.as_str()))
+            .unwrap_or_default()
+    }
 }
 
 impl Display for Project {
@@ -34,7 +63,7 @@ impl Display for Project {
                 .iter()
                 .map(|f| format!(
                     "{} - {}",
-                    f.version.clone(),
+                    f.version.deref(),
                     f.tags
                         .iter()
                         .map(|t| t.to_string())
