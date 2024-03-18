@@ -330,6 +330,7 @@ pub mod version_status {
             }
         }
     }
+
     #[derive(Debug)]
     pub struct Versions {
         local: Versioning,
@@ -355,7 +356,7 @@ pub mod version_status {
         /// assert_eq!(Versions::new("2.0","1.0").status(), VersionStatus::Overdated);
         /// ```
         pub fn status(&self) -> VersionStatus {
-            match dbg!(self).local.cmp(&self.remote) {
+            match self.local.cmp(&self.remote) {
                 Ordering::Less => VersionStatus::OutOfDate,
                 Ordering::Equal => VersionStatus::UpToDate,
                 Ordering::Greater => VersionStatus::Overdated,
@@ -420,5 +421,4 @@ pub mod mc_mod_info {
                 })
         }
     }
-
 }

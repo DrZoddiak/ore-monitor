@@ -326,7 +326,7 @@ mod version_check_command {
         query::Query,
         version_status::{VersionStatus, Versions},
     };
-    use std::{ops::Deref, path::PathBuf};
+    use std::{fmt::Display, ops::Deref, path::PathBuf};
     use tokio_stream::StreamExt;
 
     use crate::{ore::ore_client::OreClient, sponge_schemas::Project};
@@ -346,14 +346,12 @@ mod version_check_command {
             let files = {
                 let reader = FileReader::from(self.file.deref());
 
-                let file = if self.file.is_dir() {
-                    reader.handle_dir()?
-                } else if self.file.is_file() {
-                    vec![reader.handle_file(None)?]
-                } else {
-                    vec![]
-                };
-                file
+                match self {
+                    _ if self.file.is_dir() => Some(reader.handle_dir()?),
+                    _ if self.file.is_file() => Some(vec![reader.handle_file(None)?]),
+                    __ => None,
+                }
+                .unwrap_or_default()
             };
 
             let projects = {
@@ -370,19 +368,46 @@ mod version_check_command {
                 projects
             };
 
-            let checklist: Vec<(&McModInfo, Project)> = files.iter().zip(projects).collect();
+            let checklist = files
+                .into_iter()
+                .zip(projects)
+                .map(|vers: (McModInfo, Project)| VersionDisplay::new(vers).to_string())
+                .collect::<Vec<String>>()
+                .join("");
 
-            let mut version_status_list: Vec<VersionStatus> = vec![];
+            Ok(println!("{}", checklist))
+        }
+    }
 
-            for (local, remote) in checklist {
-                let project_ver = remote.version_from_tag(local.sponge_tag_version()?);
+    struct VersionDisplay {
+        id: String,
+        local_version: String,
+        remote_version: String,
+    }
 
-                let local_ver = local.version.as_str();
-                let status = Versions::new(local_ver, project_ver).status();
-                version_status_list.push(status)
+    impl VersionDisplay {
+        fn new(vers: (McModInfo, Project)) -> VersionDisplay {
+            Self {
+                id: vers.0.modid.clone(),
+                local_version: vers.0.version.clone(),
+                remote_version: vers
+                    .1
+                    .version_from_tag(vers.0.sponge_tag_version().unwrap_or_default())
+                    .to_string(),
             }
+        }
 
-            Ok(println!("statuslist {:?}", version_status_list))
+        fn status(&self) -> VersionStatus {
+            Versions::new(&self.local_version, &self.remote_version).status()
+        }
+    }
+
+    impl Display for VersionDisplay {
+        fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+            writeln!(f, "ModID: {}", self.id)?;
+            writeln!(f, "Local Version : {}", self.local_version)?;
+            writeln!(f, "Remote Version : {}", self.remote_version)?;
+            writeln!(f, "Version Status : {}", self.status())
         }
     }
 }

@@ -31,12 +31,10 @@ impl Project {
                 let tag = f
                     .tags
                     .iter()
-                    .find(|p| p.name.contains("sponge"))
-                    .and_then(|f| Some(f.display_data.as_ref()))
-                    .unwrap_or_default()
+                    .find(|p| p.name.contains("Sponge"))
+                    .and_then(|f| f.display_data.as_ref())
                     .and_then(|f| f.split_once("."))
-                    .and_then(|f| Some(f.0))
-                    .and_then(|f| Some(f.parse::<u32>().unwrap_or_default()))
+                    .and_then(|(f, _)| Some(f.parse::<u32>().unwrap_or_default()))
                     .unwrap_or_default();
                 (ver, tag)
             })
