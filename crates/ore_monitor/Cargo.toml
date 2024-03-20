@@ -21,4 +21,3 @@ zip = "0.6.6"
 versions = "6.1.0"
 anyhow.workspace = true
 tokio-stream = "0.1"
-async-stream = "0.3"

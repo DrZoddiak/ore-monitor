@@ -24,7 +24,7 @@ pub mod core_command {
         where
             Self: Sized,
         {
-            serde_json::from_str(&res.text().await?).map_err(|e| anyhow::Error::from(e))
+            self.serialize_str(&res.text().await?).await
         }
 
         async fn serialize_str<T: DeserializeOwned>(&self, txt: &str) -> Result<T>

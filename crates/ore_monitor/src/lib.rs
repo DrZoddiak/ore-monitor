@@ -26,7 +26,7 @@ pub mod query {
     ///         ("list","three")
     ///     ]
     ///     .iter()
-    ///     .map(|f| (f.0.to_string(),f.1.to_string()))
+    ///     .map(|(list,num)| (list.to_string(), num.to_string()))
     ///     .collect();
     /// assert_eq!(query_vec, result);
     /// ```
@@ -321,13 +321,12 @@ pub mod version_status {
 
     impl Display for VersionStatus {
         fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-            match self {
-                VersionStatus::OutOfDate => writeln!(f, "Version is outdated"),
-                VersionStatus::UpToDate => writeln!(f, "Version is up to date"),
-                VersionStatus::Overdated => {
-                    writeln!(f, "Source version is newer than Remote version")
-                }
-            }
+            let status = match self {
+                VersionStatus::OutOfDate => "Version is outdated",
+                VersionStatus::UpToDate => "Version is up to date",
+                VersionStatus::Overdated => "Local version is newer than Remote version",
+            };
+            write!(f, "{}", status)
         }
     }
 
