@@ -1,7 +1,7 @@
 [workspace]
-resolver = "2"
+resolver = "1"
 members = [
-    "crates/ore_monitor"
+    "crates/*",
 ]
 
 [workspace.package]
@@ -11,4 +11,4 @@ authors = ["Zodd"]
 
 [workspace.dependencies]
 anyhow = "1.0"
-
+versions = "6.1.0"

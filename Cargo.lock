@@ -883,6 +883,7 @@ dependencies = [
  "chrono",
  "clap",
  "human_bytes",
+ "ore_monitor_common",
  "reqwest",
  "serde",
  "serde_json",
@@ -890,6 +891,14 @@ dependencies = [
  "tokio-stream",
  "versions",
  "zip",
+]
+
+[[package]]
+name = "ore_monitor_common"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "versions",
 ]
 
 [[package]]

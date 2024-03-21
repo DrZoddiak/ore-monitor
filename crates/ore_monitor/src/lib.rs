@@ -35,7 +35,7 @@ pub mod query {
         ($($lit:literal : $val:expr),+ $(,)?) => {
             {
                 use std::collections::HashMap;
-                use oremon_lib::query::{Query, QueryType};
+                use ore_monitor::query::{Query, QueryType};
 
                 let mut map: HashMap<String, Vec<String>> = Default::default();
 
@@ -135,8 +135,8 @@ pub mod query {
         pub fn get_query(&self, key: &str) -> String {
             self.query
                 .iter()
-                .filter(|k| k.0 == key)
-                .map(|f| f.1.to_string())
+                .filter(|(k, _)| k == key)
+                .map(|(_, f)| f.to_string())
                 .collect::<String>()
         }
 
@@ -303,68 +303,8 @@ pub mod file_reader {
     }
 }
 
-/// Module handles version checking implementation
-pub mod version_status {
-    use std::{cmp::Ordering, fmt::Display};
-    use versions::Versioning;
-
-    /// Represents the status a version can have compared to Ore
-    #[derive(PartialEq, Debug)]
-    pub enum VersionStatus {
-        /// Version is outdated
-        OutOfDate,
-        /// Version is up-to-date
-        UpToDate,
-        /// Version is higher than remote version
-        Overdated,
-    }
-
-    impl Display for VersionStatus {
-        fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-            let status = match self {
-                VersionStatus::OutOfDate => "Version is outdated",
-                VersionStatus::UpToDate => "Version is up to date",
-                VersionStatus::Overdated => "Local version is newer than Remote version",
-            };
-            write!(f, "{}", status)
-        }
-    }
-
-    #[derive(Debug)]
-    pub struct Versions {
-        local: Versioning,
-        remote: Versioning,
-    }
-
-    impl Versions {
-        pub fn new(local: &'_ str, remote: &'_ str) -> Versions {
-            Self {
-                local: Versioning::new(local).unwrap_or_default(),
-                remote: Versioning::new(remote).unwrap_or_default(),
-            }
-        }
-
-        /// Compares the local and remote versions
-        /// ```
-        /// use oremon_lib::version_status::{ VersionStatus, Versions };
-        ///
-        /// assert_eq!(Versions::new("2.0","2.0").status(), VersionStatus::UpToDate);
-        ///
-        /// assert_eq!(Versions::new("1.0","2.0").status(), VersionStatus::OutOfDate);
-        ///
-        /// assert_eq!(Versions::new("2.0","1.0").status(), VersionStatus::Overdated);
-        /// ```
-        pub fn status(&self) -> VersionStatus {
-            match self.local.cmp(&self.remote) {
-                Ordering::Less => VersionStatus::OutOfDate,
-                Ordering::Equal => VersionStatus::UpToDate,
-                Ordering::Greater => VersionStatus::Overdated,
-            }
-        }
-    }
-}
-
 pub mod mc_mod_info {
+    use anyhow::{Error, Result};
     use serde::Deserialize;
 
     /// The root representation of an mcmod.info
@@ -383,8 +323,6 @@ pub mod mc_mod_info {
         pub dependencies: Vec<String>,
         pub required_mods: Vec<String>,
     }
-
-    use anyhow::{Error, Result};
 
     impl McModInfo {
         /// Attempts to get the tag version from the mcmod file

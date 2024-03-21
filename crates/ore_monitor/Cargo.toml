@@ -4,10 +4,6 @@ version.workspace = true
 edition.workspace = true
 authors.workspace = true
 
-[lib]
-name = "oremon_lib"
-path = "src/lib.rs"
-
 [dependencies]
 clap = { version = "4", features = ["derive","string"] }
 reqwest = "0.11"
@@ -21,3 +17,4 @@ zip = "0.6.6"
 versions = "6.1.0"
 anyhow.workspace = true
 tokio-stream = "0.1"
+ore_monitor_common = { path = "../ore_monitor_common" }

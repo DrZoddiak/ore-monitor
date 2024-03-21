@@ -2,8 +2,8 @@ pub mod core_command {
     use anyhow::Result;
     use async_trait::async_trait;
     use clap::Parser;
-    use oremon_lib::gen_matches;
-    use oremon_lib::query::Query;
+    use ore_monitor::gen_matches;
+    use ore_monitor::query::Query;
     use reqwest::Response;
     use serde::de::DeserializeOwned;
     use std::fmt::Display;
@@ -73,7 +73,7 @@ mod search_command {
     };
     use async_trait::async_trait;
     use clap::Parser;
-    use oremon_lib::{query::Query, query_builder};
+    use ore_monitor::{query::Query, query_builder};
 
     /// Enables the searching of plugins based on a query if provided
     #[derive(Parser, Default)]
@@ -133,7 +133,7 @@ mod plugin_command {
     use anyhow::Result;
     use async_trait::async_trait;
     use clap::{Parser, Subcommand};
-    use oremon_lib::{plugin_response, query::Query, query_builder};
+    use ore_monitor::{plugin_response, query::Query, query_builder};
     use reqwest::Response;
 
     use crate::ore::ore_client::OreClient;
@@ -231,7 +231,7 @@ mod install_command {
     use anyhow::Result;
     use async_trait::async_trait;
     use clap::Parser;
-    use oremon_lib::{plugin_response, query::Query};
+    use ore_monitor::{plugin_response, query::Query};
     use reqwest::StatusCode;
 
     use crate::{ore::ore_client::OreClient, sponge_schemas::Project};
@@ -320,13 +320,9 @@ mod version_check_command {
     use anyhow::Result;
     use async_trait::async_trait;
     use clap::Parser;
-    use oremon_lib::{
-        file_reader::FileReader,
-        mc_mod_info::McModInfo,
-        query::Query,
-        version_status::{VersionStatus, Versions},
-    };
-    use std::{fmt::Display, ops::Deref, path::PathBuf};
+    use ore_monitor::{file_reader::FileReader, mc_mod_info::McModInfo, query::Query};
+    use ore_monitor_common::version_status::VersionStatus;
+    use std::{fmt::Display, ops::Deref, os::linux::raw::stat, path::PathBuf};
     use tokio_stream::StreamExt;
 
     use crate::{ore::ore_client::OreClient, sponge_schemas::Project};
@@ -373,9 +369,9 @@ mod version_check_command {
                 .zip(projects)
                 .map(|vers: (McModInfo, Project)| VersionDisplay::new(vers).to_string())
                 .collect::<Vec<String>>()
-                .join("");
+                .join("\n");
 
-            Ok(println!("{}", checklist))
+            self.print_res(checklist)
         }
     }
 
@@ -383,22 +379,20 @@ mod version_check_command {
         id: String,
         local_version: String,
         remote_version: String,
+        status: VersionStatus,
     }
 
     impl VersionDisplay {
-        fn new(vers: (McModInfo, Project)) -> VersionDisplay {
+        fn new((local, remote): (McModInfo, Project)) -> VersionDisplay {
+            let sponge_tag = local.sponge_tag_version().unwrap_or_default();
+            let remote = remote.version_from_tag(sponge_tag).to_string();
+            let status = VersionStatus::new(&local.version, &remote);
             Self {
-                id: vers.0.modid.clone(),
-                local_version: vers.0.version.clone(),
-                remote_version: vers
-                    .1
-                    .version_from_tag(vers.0.sponge_tag_version().unwrap_or_default())
-                    .to_string(),
+                id: local.modid,
+                local_version: local.version,
+                remote_version: remote,
+                status: status,
             }
-        }
-
-        fn status(&self) -> VersionStatus {
-            Versions::new(&self.local_version, &self.remote_version).status()
         }
     }
 
@@ -407,7 +401,7 @@ mod version_check_command {
             writeln!(f, "ModID: {}", self.id)?;
             writeln!(f, "Local Version : {}", self.local_version)?;
             writeln!(f, "Remote Version : {}", self.remote_version)?;
-            writeln!(f, "Version Status : {}", self.status())
+            writeln!(f, "Version Status : {}", self.status)
         }
     }
 }
