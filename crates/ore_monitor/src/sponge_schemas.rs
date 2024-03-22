@@ -2,23 +2,50 @@ use chrono::{DateTime, Utc};
 use clap::ValueEnum;
 use human_bytes::human_bytes;
 use serde::{Deserialize, Serialize};
-use std::fmt::Display;
+use std::{fmt::Display, ops::Deref};
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct Project {
-    created_at: String,
+    created_at: DateTime<Utc>,
     plugin_id: String,
     name: String,
     pub namespace: ProjectNamespace,
-    promoted_versions: Vec<PromotedVersion>,
+    pub promoted_versions: Vec<PromotedVersion>,
     stats: ProjectStatsAll,
     category: Category,
     description: String,
-    last_updated: String,
+    last_updated: DateTime<Utc>,
     visibility: String,
     user_actions: UserActions,
     settings: ProjectSettings,
     icon_url: String,
+}
+
+impl Project {
+    pub fn version_from_tag(&self, major_version: u32) -> &str {
+        let available_tags: Vec<_> = self
+            .promoted_versions
+            .iter()
+            .map(|f| {
+                let ver = &f.version;
+                let tag = f
+                    .tags
+                    .iter()
+                    .find(|p| p.name.contains("Sponge"))
+                    .and_then(|f| f.display_data.as_ref())
+                    .and_then(|f| f.split_once("."))
+                    .and_then(|(f, _)| Some(f.parse::<u32>().unwrap_or_default()))
+                    .unwrap_or_default();
+                (ver, tag)
+            })
+            .collect();
+
+        available_tags
+            .iter()
+            .find(|p| p.1.eq(&major_version))
+            .and_then(|f| Some(f.0.as_str()))
+            .unwrap_or_default()
+    }
 }
 
 impl Display for Project {
@@ -26,11 +53,7 @@ impl Display for Project {
         writeln!(f, "Plugin ID : {}", self.namespace.slug)?;
         writeln!(f, "Author : {}", self.namespace.owner)?;
         writeln!(f, "Description : {}", self.description)?;
-        writeln!(
-            f,
-            "Last Updated : {}",
-            self.last_updated.parse::<DateTime<Utc>>().unwrap()
-        )?;
+        writeln!(f, "Last Updated : {}", self.last_updated)?;
         writeln!(
             f,
             "Promoted Version : {}",
@@ -38,7 +61,7 @@ impl Display for Project {
                 .iter()
                 .map(|f| format!(
                     "{} - {}",
-                    f.version.clone(),
+                    f.version.deref(),
                     f.tags
                         .iter()
                         .map(|t| t.to_string())
@@ -177,7 +200,7 @@ pub struct ApiSessionProperties {
 
 #[derive(Serialize, Deserialize)]
 pub struct User {
-    created_at: String,
+    created_at: DateTime<Utc>,
     name: String,
     tagline: Option<String>,
     join_date: Option<String>,
@@ -209,6 +232,7 @@ pub struct ProjectSettings {
     license: ProjectLicense,
     forum_sync: bool,
 }
+
 #[derive(Serialize, Deserialize, Debug)]
 pub struct KeyToCreate {
     name: String,
@@ -230,11 +254,13 @@ impl Display for PaginatedProjectResult {
             .collect::<std::fmt::Result>()
     }
 }
+
 #[derive(Serialize, Deserialize, Debug)]
 pub struct ProjectStatsDay {
     downloads: i64,
     view: i64,
 }
+
 #[derive(Serialize, Deserialize, Debug)]
 pub struct PaginatedCompactProjectResult {
     pagination: Pagination,
@@ -330,6 +356,7 @@ pub struct ProjectNamespace {
     pub owner: String,
     pub slug: String,
 }
+
 #[derive(Serialize, Deserialize, Debug)]
 pub struct ReturnedApiSession {
     pub session: String,
@@ -393,7 +420,7 @@ impl Display for ProjectSortingStrategy {
 
 #[derive(Serialize, Deserialize)]
 pub struct Version {
-    created_at: String,
+    created_at: DateTime<Utc>,
     name: String,
     dependencies: Vec<VersionDependency>,
     visibility: String,
@@ -409,11 +436,7 @@ impl Display for Version {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         writeln!(f, "{}", format!("{:=^45}", format!("[{}]", self.name)))?;
         writeln!(f, "Author : {}", self.author.as_deref().unwrap_or_default())?;
-        writeln!(
-            f,
-            "Created at : {}",
-            self.created_at.parse::<DateTime<Utc>>().unwrap()
-        )?;
+        writeln!(f, "Created at : {}", self.created_at)?;
         writeln!(f, "Review State : {}", self.review_state)?;
         writeln!(
             f,

@@ -1,19 +1,25 @@
-[package]
-name = "ore_monitor"
+[workspace]
+resolver = "1"
+members = [
+    "crates/*",
+]
+
+[workspace.package]
 version = "0.1.0"
 edition = "2021"
+authors = ["Zodd"]
 
-[lib]
-name = "common"
-path = "src/libs/lib.rs"
-
-[dependencies]
-clap = { version = "4", features = ["derive"] }
+[workspace.dependencies]
+anyhow = "1.0"
+async-trait = "0.1.77"
+chrono = { version = "0.4", features = ["serde"] }
+clap = { version = "4", features = ["derive","string"] }
+human_bytes="0.4"
+ore_monitor_common = { path = "crates/ore_monitor_common" }
 reqwest = "0.11"
-tokio = { version = "1" ,features = ["macros","rt-multi-thread"]}
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
-chrono = "0.4"
-anyhow = "1.0"
-human_bytes="0.4"
-async-trait = "0.1.77"
+tokio = { version = "1" ,features = ["macros","rt-multi-thread"]}
+tokio-stream = "0.1"
+versions = "6.1.0"
+zip = "0.6.6"
