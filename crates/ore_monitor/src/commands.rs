@@ -322,7 +322,7 @@ mod version_check_command {
     use clap::Parser;
     use ore_monitor::{file_reader::FileReader, mc_mod_info::McModInfo, query::Query};
     use ore_monitor_common::version_status::VersionStatus;
-    use std::{fmt::Display, ops::Deref, os::linux::raw::stat, path::PathBuf};
+    use std::{fmt::Display, ops::Deref, path::PathBuf};
     use tokio_stream::StreamExt;
 
     use crate::{ore::ore_client::OreClient, sponge_schemas::Project};

@@ -57,7 +57,7 @@ pub mod ore_client {
         }
 
         // Invalidates the current session
-        async fn invalidate(&self) -> Result<()> {
+        async fn _invalidate(&self) -> Result<()> {
             let builder = self
                 .client
                 .delete(format!("{}/sessions/current", self.base_url));

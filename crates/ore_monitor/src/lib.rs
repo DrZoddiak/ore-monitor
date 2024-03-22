@@ -192,9 +192,9 @@ pub mod file_reader {
         /// Handles a directory and reads the files inside of it
         /// Returns a Vector of [ModInfo] of each valid file.
         /// ```
-        /// # use oremon_lib::file_reader::FileReader;
+        /// # use ore_monitor::file_reader::FileReader;
         /// # use std::path::Path;
-        /// # use oremon_lib::mc_mod_info::McModInfo;
+        /// # use ore_monitor::mc_mod_info::McModInfo;
         /// let reader = FileReader::from(Path::new("./local/test/"));
         /// let file = reader.handle_dir().unwrap();
         /// let mod_one = McModInfo {
@@ -238,9 +238,9 @@ pub mod file_reader {
         /// Handles a single file. It reads from the [PathBuf] provided.
         /// If a path is provided it will read from it instead.
         /// ```
-        /// # use oremon_lib::file_reader::FileReader;
+        /// # use ore_monitor::file_reader::FileReader;
+        /// # use ore_monitor::mc_mod_info::McModInfo;
         /// # use std::path::Path;
-        /// # use oremon_lib::mc_mod_info::McModInfo;
         /// let reader = FileReader::from(Path::new("./local/test/nucleus.jar"));
         /// let file = reader.handle_file(None).unwrap();
         /// let mod_info = McModInfo {
@@ -328,7 +328,7 @@ pub mod mc_mod_info {
         /// Attempts to get the tag version from the mcmod file
         /// First reading from the dependencies list, if failing that the required_mods list.
         /// ```
-        /// use oremon_lib::mc_mod_info::McModInfo;
+        /// use ore_monitor::mc_mod_info::McModInfo;
         ///
         /// let mod_info = McModInfo {
         ///     modid : "nucleus".to_string(),
