@@ -889,7 +889,6 @@ dependencies = [
  "serde_json",
  "tokio",
  "tokio-stream",
- "versions",
  "zip",
 ]
 
@@ -897,7 +896,6 @@ dependencies = [
 name = "ore_monitor_common"
 version = "0.1.0"
 dependencies = [
- "anyhow",
  "versions",
 ]
 

@@ -6,4 +6,3 @@ authors.workspace = true
 
 [dependencies]
 versions.workspace = true
-anyhow.workspace = true
