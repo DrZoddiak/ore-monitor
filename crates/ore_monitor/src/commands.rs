@@ -320,7 +320,7 @@ mod version_check_command {
     use anyhow::Result;
     use async_trait::async_trait;
     use clap::Parser;
-    use ore_monitor::{file_reader::FileReader, mc_mod_info::McModInfo, query::Query};
+    use ore_monitor::{file_reader::FileReader, mc_mod_info::OreModInfo, query::Query};
     use ore_monitor_common::version_status::VersionStatus;
     use std::{fmt::Display, ops::Deref, path::PathBuf};
     use tokio_stream::StreamExt;
@@ -367,7 +367,7 @@ mod version_check_command {
             let checklist = files
                 .into_iter()
                 .zip(projects)
-                .map(|vers: (McModInfo, Project)| VersionDisplay::new(vers).to_string())
+                .map(|vers: (OreModInfo, Project)| VersionDisplay::new(vers).to_string())
                 .collect::<Vec<String>>()
                 .join("\n");
 
@@ -383,15 +383,15 @@ mod version_check_command {
     }
 
     impl VersionDisplay {
-        fn new((local, remote): (McModInfo, Project)) -> VersionDisplay {
-            let sponge_tag = local.sponge_tag_version().unwrap_or_default();
+        fn new((local, remote): (OreModInfo, Project)) -> VersionDisplay {
+            let sponge_tag = local.major_api_version;
             let remote = remote.version_from_tag(sponge_tag).to_string();
             let status = VersionStatus::new(&local.version, &remote);
             Self {
                 id: local.modid,
                 local_version: local.version,
                 remote_version: remote,
-                status: status,
+                status,
             }
         }
     }

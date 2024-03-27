@@ -166,15 +166,17 @@ pub mod query {
 pub mod file_reader {
     use std::{
         fs::{self, File},
-        io::{BufReader, ErrorKind, Read, Result},
+        io::{BufReader, Read},
         ops::Deref,
         path::{Path, PathBuf},
     };
 
-    use serde::de::DeserializeOwned;
-    use zip::{read::ZipFile, ZipArchive};
+    use anyhow::Result;
 
-    use crate::mc_mod_info::{McModInfo, ModInfo};
+    use serde::de::DeserializeOwned;
+    use zip::ZipArchive;
+
+    use crate::mc_mod_info::{ModInfo, OreModInfo, PluginInfo};
 
     /// A reader that takes a [PathBuf] to read a file or group of files
     #[derive(Debug, Default)]
@@ -221,19 +223,20 @@ pub mod file_reader {
         /// let mods = vec![mod_one, mod_two];
         /// assert_eq!(file,mods);
         /// ```
-        pub fn handle_dir(&self) -> Result<Vec<McModInfo>> {
+        pub fn handle_dir(&self) -> Result<Vec<OreModInfo>> {
             let info = fs::read_dir(&self.base_path)?
                 .filter_map(|res| res.ok())
                 .map(|entry| entry.path())
                 .filter_map(|path| self.handle_file(Some(&path)).ok())
                 .map(|f| f)
-                .collect::<Vec<McModInfo>>();
+                .collect::<Vec<OreModInfo>>();
 
             Ok(info)
         }
 
         /// The file intended to be read from
         const INFO_FILE: &'static str = "mcmod.info";
+        const PLUGIN_FILE: &'static str = "META-INF/sponge_plugins.json";
 
         /// Handles a single file. It reads from the [PathBuf] provided.
         /// If a path is provided it will read from it instead.
@@ -252,60 +255,90 @@ pub mod file_reader {
         /// };
         /// assert_eq!(file,mod_info);
         /// ```
-        pub fn handle_file(&self, path: Option<&Path>) -> Result<McModInfo> {
-            let path = path.unwrap_or(self.base_path.deref());
+        pub fn handle_file(&self, path: Option<&Path>) -> Result<OreModInfo> {
+            Ok(path.unwrap_or(self.base_path.deref()))
+                .and_then(|path| File::open(path))
+                .and_then(|file| Ok(BufReader::new(file)))
+                .and_then(|buf_reader| Ok(ZipArchive::new(buf_reader)))?
+                .and_then(|zip| Ok(JarFileReader::new(zip)))
+                .and_then(|mut jar_reader| {
+                    let ore_mod_info = match jar_reader.find_file::<ModInfo>(Self::INFO_FILE) {
+                        Ok(file) => Ok(OreModInfo::from(file)),
+                        Err(e) => Err(e),
+                    }
+                    .or(
+                        match jar_reader.find_file::<PluginInfo>(Self::PLUGIN_FILE) {
+                            Ok(file) => Ok(OreModInfo::from(file)),
+                            Err(e) => Err(e),
+                        },
+                    );
 
-            let file = File::open(path)?;
-
-            let reader = BufReader::new(file);
-
-            let mut zip = ZipArchive::new(reader)?;
-
-            let jar_reader = JarFileReader::find_file(&mut zip, Self::INFO_FILE)?
-                .read_file_content()?
-                .deserialize::<ModInfo>()?;
-
-            Ok(jar_reader.info)
+                    Ok(ore_mod_info)
+                })?
         }
     }
 
     /// JarFileReader is intended to read `.jar` files
-    struct JarFileReader<'a> {
-        file: ZipFile<'a>,
-        content: String,
+    struct JarFileReader {
+        file: ZipArchive<BufReader<File>>,
     }
 
-    impl<'a> JarFileReader<'a> {
+    impl JarFileReader {
+        fn new(file: ZipArchive<BufReader<File>>) -> Self {
+            JarFileReader { file }
+        }
+
         /// Locates a file from a [ZipArchive] by the files name
         /// Returns [self] for method chaining.
-        fn find_file(
-            zip: &'a mut ZipArchive<BufReader<File>>,
-            str: &str,
-        ) -> Result<JarFileReader<'a>> {
-            Ok(Self {
-                file: zip.by_name(str)?,
-                content: String::new(),
-            })
-        }
-
-        /// Reads the files content into a String which is then stored into [content]
-        /// Returns [self] for method chaining.
-        pub fn read_file_content(&mut self) -> Result<&mut Self> {
-            self.file.read_to_string(&mut self.content)?;
-            Ok(self)
-        }
-
-        /// Deserializes the returned content for Json files
-        pub fn deserialize<T: DeserializeOwned>(&self) -> Result<T> {
-            serde_json::from_str(&self.content)
-                .map_err(|e| std::io::Error::new(ErrorKind::InvalidData, e))
+        fn find_file<'a, T: DeserializeOwned>(&mut self, file_name: &str) -> Result<T> {
+            let mut buf = String::new();
+            self.file.by_name(file_name)?.read_to_string(&mut buf)?;
+            Ok(serde_json::from_str::<T>(&buf)?)
         }
     }
 }
 
 pub mod mc_mod_info {
-    use anyhow::{Error, Result};
     use serde::Deserialize;
+
+    #[derive(Deserialize, Debug)]
+    pub struct OreModInfo {
+        pub modid: String,
+        pub name: String,
+        pub version: String,
+        pub major_api_version: u32,
+    }
+
+    impl OreModInfo {
+        fn new(modid: String, name: String, version: String, major_api_version: u32) -> Self {
+            OreModInfo {
+                modid,
+                name,
+                version,
+                major_api_version,
+            }
+        }
+    }
+
+    impl From<ModInfo> for OreModInfo {
+        fn from(value: ModInfo) -> Self {
+            let info = value.info;
+            let major = info.sponge_tag_version();
+            OreModInfo::new(info.modid, info.name, info.version, major)
+        }
+    }
+
+    impl From<PluginInfo> for OreModInfo {
+        fn from(value: PluginInfo) -> Self {
+            let plugin = value.first_plugin();
+            OreModInfo::new(
+                plugin.id,
+                plugin.name,
+                plugin.version.unwrap_or_default().replace(' ', "-"),
+                value.major_api_version(),
+            )
+        }
+    }
 
     /// The root representation of an mcmod.info
     #[derive(Deserialize, Debug)]
@@ -341,10 +374,10 @@ pub mod mc_mod_info {
         /// let tag = mod_info.sponge_tag_version().unwrap();
         /// assert_eq!(tag, 7);
         /// ```
-        pub fn sponge_tag_version(&self) -> Result<u32> {
+        pub fn sponge_tag_version(&self) -> u32 {
             self.find_major_version("spongeapi", &self.dependencies)
                 .or(self.find_major_version("spongeapi", &self.required_mods))
-                .ok_or(Error::msg("Unable to find Sponge API tag"))
+                .unwrap_or_default()
         }
 
         fn find_major_version(&self, id: &'_ str, list: &Vec<String>) -> Option<u32> {
@@ -352,10 +385,70 @@ pub mod mc_mod_info {
                 .find(|str| str.starts_with(id))
                 .and_then(|str| str.split_once('@'))
                 .and_then(|(_, ver)| ver.split_once('.'))
-                .and_then(|(major, _)| match major.parse() {
-                    Ok(num) => Some(num),
-                    Err(_) => None,
-                })
+                .and_then(|(major, _)| major.parse().ok())
         }
+    }
+
+    #[derive(Deserialize, Debug, PartialEq)]
+    pub struct PluginInfo {
+        pub global: Option<GlobalPlugin>,
+        pub plugins: Vec<PluginData>,
+    }
+
+    impl PluginInfo {
+        fn first_plugin(&self) -> PluginData {
+            self.plugins
+                .first()
+                .unwrap_or(&PluginData::default())
+                .clone()
+        }
+
+        fn major_api_version(&self) -> u32 {
+            self.global
+                .clone()
+                .and_then(|f| Some(f.dependencies))
+                .or(Some(self.first_plugin().dependencies))
+                .unwrap_or_default()
+                .iter()
+                .filter(|dep| dep.is_sponge_dep())
+                .map(|ver| ver.major_api_version())
+                .collect::<Vec<u32>>()
+                .first()
+                .and_then(|f| Some(f.clone()))
+                .unwrap_or_default()
+        }
+    }
+
+    #[derive(Deserialize, Debug, PartialEq, Clone)]
+    pub struct GlobalPlugin {
+        pub version: String,
+        pub dependencies: Vec<PluginDependencies>,
+    }
+
+    #[derive(Debug, Deserialize, PartialEq, Default, Clone)]
+    pub struct PluginDependencies {
+        pub id: String,
+        pub version: String,
+    }
+
+    impl PluginDependencies {
+        fn is_sponge_dep(&self) -> bool {
+            self.id.eq_ignore_ascii_case("spongeapi")
+        }
+
+        fn major_api_version(&self) -> u32 {
+            self.version
+                .split_once('.')
+                .and_then(|(major, _)| major.parse().ok())
+                .unwrap_or_default()
+        }
+    }
+
+    #[derive(Deserialize, Debug, PartialEq, Clone, Default)]
+    pub struct PluginData {
+        pub id: String,
+        pub name: String,
+        pub version: Option<String>,
+        pub dependencies: Vec<PluginDependencies>,
     }
 }
