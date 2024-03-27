@@ -73,8 +73,8 @@ pub mod query {
     ///     Foo(A),
     ///     Bar(B),
     /// }
-    /// 
-    /// gen_matches!(Enum, CommonTrait, Enum::Foo, Enum::Bar)
+    ///
+    /// gen_matches!{ Enum, CommonTrait, Enum::Foo, Enum::Bar }
     /// ```
     /// The macro expands into
     /// ```
@@ -113,8 +113,6 @@ pub mod query {
             }
         };
     }
-
-
 
     #[macro_export]
     macro_rules! plugin_response {
