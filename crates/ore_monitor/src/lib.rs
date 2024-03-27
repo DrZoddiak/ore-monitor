@@ -6,16 +6,16 @@ pub mod query {
     ///
     /// Takes a [str] and [QueryType]
     /// ```
-    /// # use oremon_lib::query::{Query, QueryType};
-    /// # use oremon_lib::{plugin_response, query_builder};
-    /// #
+    /// use ore_monitor::query::{Query, QueryType};
+    /// use ore_monitor::{plugin_response, query_builder};
+    ///
     /// let query = query_builder!("q" : QueryType::Value(Some("value"))).to_vec();
     /// assert_eq!(query, vec![("q".to_string(),"value".to_string())]);
     /// ```
     /// ```
-    /// # use oremon_lib::query::{Query, QueryType};
-    /// # use oremon_lib::{plugin_response, query_builder};
-    /// #
+    /// use ore_monitor::query::{Query, QueryType};
+    /// use ore_monitor::{plugin_response, query_builder};
+    ///
     /// let query_vec = query_builder!(
     ///     "list" : QueryType::Vec(Some(vec!["one","two","three"]))
     /// ).to_vec();
@@ -60,7 +60,7 @@ pub mod query {
     /// path should be each of the Variants of the enum
     ///
     /// ```
-    /// use oremon_lib::gen_matches;
+    /// use ore_monitor::gen_matches;
     /// trait CommonTrait {}
     ///
     /// struct A {}
@@ -82,7 +82,7 @@ pub mod query {
     /// ```
     /// The macro expands into
     /// ```
-    /// # use oremon_lib::gen_matches;
+    /// # use ore_monitor::gen_matches;
     /// # trait CommonTrait {}
     /// #
     /// # struct A {}
@@ -214,17 +214,18 @@ pub mod file_reader {
         /// ```
         /// # use ore_monitor::file_reader::FileReader;
         /// # use std::path::Path;
-        /// # use ore_monitor::mc_mod_info::McModInfo;
+        /// # use ore_monitor::ore_mod_info::McModInfo;
+        /// # use ore_monitor::ore_mod_info::OreModInfo;
         /// let reader = FileReader::from(Path::new("./local/test/"));
         /// let file = reader.handle_dir().unwrap();
-        /// let mod_one = McModInfo {
+        /// let mod_one : OreModInfo = McModInfo {
         ///     modid : "nucleus".to_string(),
         ///     name : "Nucleus".to_string(),
         ///     version : "2.1.4".to_string(),
         ///     dependencies : vec!["spongeapi@7.3".to_string()],
         ///     required_mods : vec!["spongeapi@7.3".to_string()]
-        /// };
-        /// let mod_two = McModInfo {
+        /// }.into();
+        /// let mod_two: OreModInfo  = McModInfo {
         ///     modid : "huskycrates".to_string(),
         ///     name : "HuskyCrates".to_string(),
         ///     version : "2.0.0PRE9H2".to_string(),
@@ -237,16 +238,15 @@ pub mod file_reader {
         ///         "spongeapi@7.1.0-SNAPSHOT".to_string(),
         ///         "huskyui@0.6.0PRE3".to_string()
         ///     ]
-        /// };
+        /// }.into();
         /// let mods = vec![mod_one, mod_two];
-        /// assert_eq!(file,mods);
+        /// assert_eq!(file, mods);
         /// ```
         pub fn handle_dir(&self) -> Result<Vec<OreModInfo>> {
             let info = fs::read_dir(&self.base_path)?
                 .filter_map(|res| res.ok())
                 .map(|entry| entry.path())
                 .filter_map(|path| self.handle_file(Some(&path)).ok())
-                .map(|f| f)
                 .collect::<Vec<OreModInfo>>();
 
             Ok(info)
@@ -256,17 +256,18 @@ pub mod file_reader {
         /// If a path is provided it will read from it instead.
         /// ```
         /// # use ore_monitor::file_reader::FileReader;
-        /// # use ore_monitor::mc_mod_info::McModInfo;
+        /// # use ore_monitor::ore_mod_info::McModInfo;
+        /// # use ore_monitor::ore_mod_info::OreModInfo;
         /// # use std::path::Path;
         /// let reader = FileReader::from(Path::new("./local/test/nucleus.jar"));
         /// let file = reader.handle_file(None).unwrap();
-        /// let mod_info = McModInfo {
+        /// let mod_info : OreModInfo = McModInfo {
         ///     modid : "nucleus".to_string(),
         ///     name : "Nucleus".to_string(),
         ///     version : "2.1.4".to_string(),
         ///     dependencies : vec!["spongeapi@7.3".to_string()],
         ///     required_mods : vec!["spongeapi@7.3".to_string()]
-        /// };
+        /// }.into();
         /// assert_eq!(file,mod_info);
         /// ```
         pub fn handle_file(&self, path: Option<&Path>) -> Result<OreModInfo> {
@@ -307,7 +308,7 @@ pub mod ore_mod_info {
     use serde::Deserialize;
 
     /// A generic representation of both McMod.info and sponge_plugins.json
-    #[derive(Deserialize, Debug)]
+    #[derive(Deserialize, Debug, PartialEq)]
     pub struct OreModInfo {
         pub modid: String,
         pub name: String,
@@ -328,7 +329,13 @@ pub mod ore_mod_info {
 
     impl From<ModInfo> for OreModInfo {
         fn from(value: ModInfo) -> Self {
-            let info = value.info;
+            value.info.into()
+        }
+    }
+
+    impl From<McModInfo> for OreModInfo {
+        fn from(value: McModInfo) -> Self {
+            let info = value;
             let major = info.sponge_tag_version();
             OreModInfo::new(info.modid, info.name, info.version, major)
         }
@@ -367,7 +374,7 @@ pub mod ore_mod_info {
         /// Attempts to get the tag version from the mcmod file
         /// First reading from the dependencies list, if failing that the required_mods list.
         /// ```
-        /// use ore_monitor::mc_mod_info::McModInfo;
+        /// use ore_monitor::ore_mod_info::McModInfo;
         ///
         /// let mod_info = McModInfo {
         ///     modid : "nucleus".to_string(),
@@ -377,7 +384,7 @@ pub mod ore_mod_info {
         ///     required_mods : vec!["spongeapi@7.3".to_string()]
         /// };
         ///
-        /// let tag = mod_info.sponge_tag_version().unwrap();
+        /// let tag = mod_info.sponge_tag_version();
         /// assert_eq!(tag, 7);
         /// ```
         pub fn sponge_tag_version(&self) -> u32 {
