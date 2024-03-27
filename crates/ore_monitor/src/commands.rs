@@ -56,11 +56,7 @@ pub mod core_command {
         Check(VersionCheckCommand),
     }
 
-    impl Cli {
-        pub fn cmd_value(&self) -> &dyn OreCommand {
-            gen_matches!(self, Cli::Search, Cli::Plugin, Cli::Install, Cli::Check)
-        }
-    }
+    gen_matches! {Cli, OreCommand, Cli::Search, Cli::Plugin, Cli::Install, Cli::Check}
 }
 
 mod search_command {

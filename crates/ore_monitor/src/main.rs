@@ -13,5 +13,5 @@ async fn main() -> Result<()> {
     // Authorize the ore client
     let ore_client = OreAuth::default().auth().await?;
 
-    Ok(Cli::parse().cmd_value().handle(ore_client, None).await?)
+    Ok(Cli::parse().trait_value().handle(ore_client, None).await?)
 }

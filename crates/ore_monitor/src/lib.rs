@@ -73,12 +73,8 @@ pub mod query {
     ///     Foo(A),
     ///     Bar(B),
     /// }
-    ///
-    /// impl Enum {
-    ///     fn trait_value(&self) -> &dyn CommonTrait {
-    ///         gen_matches!(self, Enum::Foo, Enum::Bar)
-    ///     }
-    /// }
+    /// 
+    /// gen_matches!(Enum, CommonTrait, Enum::Foo, Enum::Bar)
     /// ```
     /// The macro expands into
     /// ```
@@ -107,12 +103,18 @@ pub mod query {
     /// ```
     #[macro_export]
     macro_rules! gen_matches {
-        ($self:ident, $($path:path),*) => {
-            match $self {
-                $($path(value) => value,)+
+        ($impl:ident,$trait:ident,$($path:path),*) => {
+            impl $impl {
+                pub fn trait_value(&self) -> &dyn $trait {
+                    match self {
+                        $($path(value) => value,)+
+                    }
+                }
             }
         };
     }
+
+
 
     #[macro_export]
     macro_rules! plugin_response {
