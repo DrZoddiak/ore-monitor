@@ -320,7 +320,7 @@ mod version_check_command {
     use anyhow::Result;
     use async_trait::async_trait;
     use clap::Parser;
-    use ore_monitor::{file_reader::FileReader, mc_mod_info::OreModInfo, query::Query};
+    use ore_monitor::{file_reader::FileReader, ore_mod_info::OreModInfo, query::Query};
     use ore_monitor_common::version_status::VersionStatus;
     use std::{fmt::Display, ops::Deref, path::PathBuf};
     use tokio_stream::StreamExt;

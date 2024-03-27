@@ -176,12 +176,30 @@ pub mod file_reader {
     use serde::de::DeserializeOwned;
     use zip::ZipArchive;
 
-    use crate::mc_mod_info::{ModInfo, OreModInfo, PluginInfo};
+    use crate::ore_mod_info::{ModInfo, OreModInfo, PluginInfo};
 
     /// A reader that takes a [PathBuf] to read a file or group of files
     #[derive(Debug, Default)]
     pub struct FileReader {
         pub base_path: PathBuf,
+    }
+
+    enum FileTypes {
+        InfoFile,
+        PluginFile,
+    }
+
+    impl FileTypes {
+        pub fn try_get(&self, jar_reader: &mut JarFileReader) -> Result<OreModInfo> {
+            match self {
+                FileTypes::InfoFile => jar_reader
+                    .find_file::<ModInfo>("mcmod.info")
+                    .map(Into::into),
+                FileTypes::PluginFile => jar_reader
+                    .find_file::<PluginInfo>("META-INF/sponge_plugins.json")
+                    .map(Into::into),
+            }
+        }
     }
 
     impl FileReader {
@@ -234,10 +252,6 @@ pub mod file_reader {
             Ok(info)
         }
 
-        /// The file intended to be read from
-        const INFO_FILE: &'static str = "mcmod.info";
-        const PLUGIN_FILE: &'static str = "META-INF/sponge_plugins.json";
-
         /// Handles a single file. It reads from the [PathBuf] provided.
         /// If a path is provided it will read from it instead.
         /// ```
@@ -262,18 +276,9 @@ pub mod file_reader {
                 .and_then(|buf_reader| Ok(ZipArchive::new(buf_reader)))?
                 .and_then(|zip| Ok(JarFileReader::new(zip)))
                 .and_then(|mut jar_reader| {
-                    let ore_mod_info = match jar_reader.find_file::<ModInfo>(Self::INFO_FILE) {
-                        Ok(file) => Ok(OreModInfo::from(file)),
-                        Err(e) => Err(e),
-                    }
-                    .or(
-                        match jar_reader.find_file::<PluginInfo>(Self::PLUGIN_FILE) {
-                            Ok(file) => Ok(OreModInfo::from(file)),
-                            Err(e) => Err(e),
-                        },
-                    );
-
-                    Ok(ore_mod_info)
+                    Ok(FileTypes::InfoFile
+                        .try_get(&mut jar_reader)
+                        .or_else(|_e| FileTypes::PluginFile.try_get(&mut jar_reader)))
                 })?
         }
     }
@@ -290,7 +295,7 @@ pub mod file_reader {
 
         /// Locates a file from a [ZipArchive] by the files name
         /// Returns [self] for method chaining.
-        fn find_file<'a, T: DeserializeOwned>(&mut self, file_name: &str) -> Result<T> {
+        fn find_file<T: DeserializeOwned>(&mut self, file_name: &str) -> Result<T> {
             let mut buf = String::new();
             self.file.by_name(file_name)?.read_to_string(&mut buf)?;
             Ok(serde_json::from_str::<T>(&buf)?)
@@ -298,9 +303,10 @@ pub mod file_reader {
     }
 }
 
-pub mod mc_mod_info {
+pub mod ore_mod_info {
     use serde::Deserialize;
 
+    /// A generic representation of both McMod.info and sponge_plugins.json
     #[derive(Deserialize, Debug)]
     pub struct OreModInfo {
         pub modid: String,
@@ -422,16 +428,16 @@ pub mod mc_mod_info {
     #[derive(Deserialize, Debug, PartialEq, Clone)]
     pub struct GlobalPlugin {
         pub version: String,
-        pub dependencies: Vec<PluginDependencies>,
+        pub dependencies: Vec<PluginDependency>,
     }
 
     #[derive(Debug, Deserialize, PartialEq, Default, Clone)]
-    pub struct PluginDependencies {
+    pub struct PluginDependency {
         pub id: String,
         pub version: String,
     }
 
-    impl PluginDependencies {
+    impl PluginDependency {
         fn is_sponge_dep(&self) -> bool {
             self.id.eq_ignore_ascii_case("spongeapi")
         }
@@ -449,6 +455,6 @@ pub mod mc_mod_info {
         pub id: String,
         pub name: String,
         pub version: Option<String>,
-        pub dependencies: Vec<PluginDependencies>,
+        pub dependencies: Vec<PluginDependency>,
     }
 }
