@@ -1,11 +1,12 @@
 pub mod ore_client {
-    use super::ore_session::OreSession;
     use anyhow::Result;
     use reqwest::{
         header::{self, AUTHORIZATION},
         Client, RequestBuilder, Response, StatusCode,
     };
     use tokio_stream::StreamExt;
+
+    use crate::sponge_schemas::OreSession;
 
     #[derive(Debug)]
     pub struct OreClient {
@@ -129,37 +130,29 @@ pub mod ore_client {
 }
 
 mod ore_session {
-    use crate::sponge_schemas::ReturnedApiSession;
-
-    /// Represents a session for Ore
-    #[derive(Default, Debug)]
-    pub(crate) struct OreSession {
-        /// The id for the session to pass for auth
-        pub session_id: String,
-        /// When the session expires
-        pub expires: String,
-    }
+    use crate::sponge_schemas::OreSession;
 
     impl OreSession {
         /// Updates the struct with the new updated values.
-        pub fn update(&mut self, response: ReturnedApiSession) {
-            self.session_id = response.session;
+        pub fn update(&mut self, response: OreSession) {
+            self.session = response.session;
             self.expires = response.expires;
         }
 
         pub fn header_value(&self) -> String {
-            format!("OreApi session={}", self.session_id)
+            format!("OreApi session={}", self.session)
         }
     }
 }
 
 pub mod ore_auth {
-    use crate::sponge_schemas::ReturnedApiSession;
     use anyhow::Result;
     use reqwest::Response;
     use std::env;
 
-    use super::{ore_client::OreClient, ore_session::OreSession};
+    use crate::sponge_schemas::OreSession;
+
+    use super::ore_client::OreClient;
 
     #[derive(Debug)]
     pub struct OreAuth {
@@ -175,7 +168,6 @@ pub mod ore_auth {
                 client: Default::default(),
                 ore_session: Default::default(),
                 base_url: "https://ore.spongepowered.org/api/v2".to_string(),
-                // Retreives key from Env Var or uses a key only capable of viewing public data.
                 api_key: env::var("ORE_API_KEY").expect("ENV_VAR 'ORE_API_KEY' required"),
             }
         }
@@ -187,7 +179,7 @@ pub mod ore_auth {
         pub async fn auth(mut self) -> Result<OreClient> {
             let res = self.send_request().await;
             let res = res?.text().await?;
-            let res: ReturnedApiSession = serde_json::from_str(&res)?;
+            let res: OreSession = serde_json::from_str(&res)?;
             self.ore_session.update(res);
 
             Ok(OreClient::new(self.client, self.ore_session, self.base_url).await)

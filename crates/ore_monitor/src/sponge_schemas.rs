@@ -357,11 +357,10 @@ pub struct ProjectNamespace {
     pub slug: String,
 }
 
-#[derive(Serialize, Deserialize, Debug)]
-pub struct ReturnedApiSession {
+#[derive(Serialize, Deserialize, Debug, Default)]
+pub struct OreSession {
     pub session: String,
-    pub expires: String, //date-time
-    pub r#type: String,
+    pub expires: DateTime<Utc>,
 }
 
 #[derive(Serialize, Deserialize)]

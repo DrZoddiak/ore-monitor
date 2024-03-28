@@ -171,7 +171,7 @@ pub mod file_reader {
         path::{Path, PathBuf},
     };
 
-    use anyhow::Result;
+    use anyhow::{Ok, Result};
 
     use serde::de::DeserializeOwned;
     use zip::ZipArchive;
@@ -272,14 +272,14 @@ pub mod file_reader {
         /// ```
         pub fn handle_file(&self, path: Option<&Path>) -> Result<OreModInfo> {
             Ok(path.unwrap_or(self.base_path.deref()))
-                .and_then(|path| File::open(path))
-                .and_then(|file| Ok(BufReader::new(file)))
-                .and_then(|buf_reader| Ok(ZipArchive::new(buf_reader)))?
-                .and_then(|zip| Ok(JarFileReader::new(zip)))
-                .and_then(|mut jar_reader| {
-                    Ok(FileTypes::InfoFile
-                        .try_get(&mut jar_reader)
-                        .or_else(|_e| FileTypes::PluginFile.try_get(&mut jar_reader)))
+                .map(File::open)?
+                .map(BufReader::new)
+                .map(ZipArchive::new)?
+                .map(JarFileReader::new)
+                .map(|mut reader| {
+                    FileTypes::InfoFile
+                        .try_get(&mut reader)
+                        .or_else(|_| FileTypes::PluginFile.try_get(&mut reader))
                 })?
         }
     }
