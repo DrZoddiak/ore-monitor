@@ -46,12 +46,9 @@ pub mod ore_client {
             builder
                 .header(
                     reqwest::header::WWW_AUTHENTICATE,
-                    format!("OreApi session={}", self.session.session_id),
+                    self.session.header_value(),
                 )
-                .header(
-                    AUTHORIZATION,
-                    format!("OreApi session={}", self.session.session_id),
-                )
+                .header(AUTHORIZATION, self.session.header_value())
                 .header(header::ACCEPT, "application/json")
                 .header("User-Agent", "Ore-Monitor")
         }
@@ -149,6 +146,10 @@ mod ore_session {
             self.session_id = response.session;
             self.expires = response.expires;
         }
+
+        pub fn header_value(&self) -> String {
+            format!("OreApi session={}", self.session_id)
+        }
     }
 }
 
@@ -175,8 +176,7 @@ pub mod ore_auth {
                 ore_session: Default::default(),
                 base_url: "https://ore.spongepowered.org/api/v2".to_string(),
                 // Retreives key from Env Var or uses a key only capable of viewing public data.
-                api_key: env::var("ORE_API_KEY")
-                    .unwrap_or("d08a6c8b-3a9e-44c1-9c85-a7dfedba00f5".to_string()),
+                api_key: env::var("ORE_API_KEY").expect("ENV_VAR 'ORE_API_KEY' required"),
             }
         }
     }

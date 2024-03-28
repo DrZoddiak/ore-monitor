@@ -60,6 +60,7 @@ pub mod core_command {
 }
 
 mod search_command {
+
     use anyhow::Result;
 
     use crate::{
@@ -112,11 +113,10 @@ mod search_command {
                 "relevance" : QueryType::Value(self.relevance),
                 "limit" : QueryType::Value(self.limit),
                 "offset" : QueryType::Value(Some(self.offset))
-            );
+            )
+            .to_vec();
 
-            let res = ore_client
-                .get("/projects".to_string(), Some(query.to_vec()))
-                .await?;
+            let res = ore_client.get("/projects".to_string(), Some(query)).await?;
 
             let res: PaginatedProjectResult = self.serialize(res).await?;
 
