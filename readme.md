@@ -16,7 +16,7 @@ If in the future certain features require more access from ore, then an API Key 
 
 **All arguments have the help flag available `-h|--help`**
 
-`ore_command` `<search|plugin|install|help>`
+`ore_command` `<search|plugin|install|check|help>`
 
 ### Search
 
@@ -65,11 +65,21 @@ Install a plugin with the plugin's ID and the name of the version
 
 `ore_command install nucleus 2.1.4`
 
+### Check
+
+___
+
+Scans a file or directory for `.jar` files and compares the version with the version on Ore
+
+`check` `[dir]`
+
+`ore_command check ./plugins`
+
 ## Additional Info
 
 ### Future Plans
 
-- [ ] Update checking
+- [X] Update checking
 - [ ] Version upgrading
 - [ ] Detect current server version and display contextual data. *ex: If the server is API8, display API8 versions first.*
 
