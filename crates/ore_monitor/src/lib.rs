@@ -271,16 +271,15 @@ pub mod file_reader {
         /// assert_eq!(file,mod_info);
         /// ```
         pub fn handle_file(&self, path: Option<&Path>) -> Result<OreModInfo> {
-            Ok(path.unwrap_or(self.base_path.deref()))
+            let mut reader = Ok(path.unwrap_or(self.base_path.deref()))
                 .map(File::open)?
                 .map(BufReader::new)
                 .map(ZipArchive::new)?
-                .map(JarFileReader::new)
-                .map(|mut reader| {
-                    FileTypes::InfoFile
-                        .try_get(&mut reader)
-                        .or_else(|_| FileTypes::PluginFile.try_get(&mut reader))
-                })?
+                .map(JarFileReader::new)?;
+
+            FileTypes::InfoFile
+                .try_get(&mut reader)
+                .or_else(|_| FileTypes::PluginFile.try_get(&mut reader))
         }
     }
 
