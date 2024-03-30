@@ -6,9 +6,7 @@ Ore-Monitor is a CLI application that displays Ore project information and allow
 
 ## Setup
 
-Most of what Ore-Monitor does is interacting with public API from Ore. So you should be able to perform most operations with no issue.
-
-If in the future certain features require more access from ore, then an API Key from ore may be required. You can set this in your environment variables.
+Most of what Ore-Monitor does is interacting with public API from Ore; however, An API Key from ore is required. You can set this in your environment variables.
 
 `ORE_API_KEY`
 
